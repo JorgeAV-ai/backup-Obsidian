@@ -1,8 +1,13 @@
 
 > [!quote] Information 
 > * paper Paper [Link](https://arxiv.org/pdf/2212.10496)
+> * @ Conference ACL'23
 > * G Github [Link](https://github.com/texttron/hyde)
-> *  tag Tags [[Retrieval Augmented Generation (RAG)]], Dense Retrieval
+> *  tag Tags 
+> 	[[Dense Retrieval]]
+> 	[[Instructions-Following Language Models]]
+> 	[[Zero-Shot Dense Retrieval]]
+> 	[[Generative Retrieval]]
 > * calendar Date 20 December 2022
 > * ? Motivation: 
 > 	Hard to create Fully zero-shot Dense Retrieval System
@@ -11,11 +16,6 @@
 > 	[[TREC DL20]]
 > 	[[BEIR]]
 > 	[[Mr.TyDi]]
-> * Fields Related fields: 
-> 	[[Dense Retrieval]]
-> 	[[Instructions-Following Language Models]]
-> 	[[Zero-Shot Dense Retrieval]]
-> 	[[Generative Retrieval]]
 > 
 
 ### 1. Introduction
