@@ -45,6 +45,7 @@ From what I see in the source code, they use the Gen model to obtain different a
 ### 3. Results
 
 #### 3.1 Web Search
+
   ##### 3.1.1 DL19/DL20
 
   | Method                      | DL19 map | DL19 ndcg@10 | DL19 recall@1k | DL20 map | DL20 ndcg@10 | DL20 recall@1k |
@@ -82,7 +83,7 @@ From what I see in the source code, they use the Gen model to obtain different a
 | ANCE                        | 81.6     | 93.7     | **45.7**   | 58.1     | 31.9     | 39.8      |
 | Contriever<sup>FT</sup>     | 94.7     | 97.7     | 40.7       | **65.6** | **54.1** | **49.2**  |
 
-#### Low Resource Retrieval (Mr.TyDi)
+#### 3.2 Low Resource Retrieval (Mr.TyDi)
 
 | Method                      | Swahili  | Korean   | Japanese | Bengali  |
 | --------------------------- | -------- | -------- | -------- | -------- |
@@ -96,9 +97,8 @@ From what I see in the source code, they use the Gen model to obtain different a
 | XLM-R                       | 35.1     | 32.2     | 24.8     | 41.7     |
 | mContriever<sup>FT</sup>    | **51.2** | **34.2** | **32.4** | **42.3** |
 
-### 4. Discussion & Conclusion
 
-### 5. Appendix
+### 4. Appendix
 
 	Web Search
 		Please write a passage to answer the question
@@ -140,4 +140,3 @@ From what I see in the source code, they use the Gen model to obtain different a
 		Question: [QUESTION]
 		Passage:
 	
-### 6. Code
