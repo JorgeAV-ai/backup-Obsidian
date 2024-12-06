@@ -28,9 +28,9 @@ The primary objective of this research is to develop a zero-shot dense retrieval
 *  LLMs can generate hypothetical documents that capture relevance patterns even if those docs contain errors or are not accurate.
 * Contrastive encoder can effectively encode document similarity in dense retrieval scenarios, filtering out irrelevant details.
 #### 2.2 Data
-* [[TREC DL19/20]]: Web search queries
+* [[TREC DL19]] & [[TREC DL20]]: Web search queries
 * [[BEIR]]: Six low-resource datasets for various retrieval tasks.
-* [[Mr.Tydi dataset]]: non-English retrieval tasks in Swahili, Korean, Japanese and Bengali
+* [[Mr.Tydi]]: non-English retrieval tasks in Swahili, Korean, Japanese and Bengali
 #### 2.3 Model Architecture
 ![[Hyde_structure.png]]
 Composition:
