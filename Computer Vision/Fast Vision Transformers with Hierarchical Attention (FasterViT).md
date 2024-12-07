@@ -104,22 +104,95 @@ $$ \hat{x_{ct}} = \hat{x_{ct}} + \gamma_{2} \cdot MLP_{d \rightarrow 4d \rightar
 where MHSA represents Multi head self attention and MLP is a 2-layer MLP with GeLU act. function
 
 ## 3 Results
-(measured with bs of 128 and A100, Imagenet-1K)
-![[Pasted image 20241124173435.png | center| 400]]
 
-![[Pasted image 20241125233536.png| 400]]
+##### **Image Classification**: 
+We employ the ImageNet-1K dataset  for classification that includes 1.2M and 50K training and validation images. The dataset has 1000 categories and we report the performance in terms of top-1 accuracy. In addition, we use ImageNet-21K dataset which has 14M images with 21841 classes for pretraining.
 
+Trained FasterViT models using LAMB optimizer for 300 epochs with a learning rate of 5e-3 and a total batch size of 4096 using 32 A100 GPUs.
 
-**Image Classification**: We employ the ImageNet-1K dataset (Deng et al., 2009) for classification that includes 1.2M and 50K training and validation images. The dataset has 1000 categories and we report the performance in terms of top-1 accuracy. In addition, we use ImageNet-21K dataset which has 14M images with 21841 classes for pretraining.
-
-Trained FasterViT models using LAMB optimizer (You et al., 2019) optimizer for 300 epochs with a learning rate of 5e-3 and a total batch size of 4096 using 32 A100 GPUs.
-
-For Data Augmentation, they used the same strategies as in previous efforts (?)
+For **Data Augmentation**, they used the same strategies as in previous efforts (?)
 They also used Exponential Moving Average (EMA).
 
 For pre-training on ImageNet-21K, we train the models for 90 epochs with a learning rate of 4e-3. In addition, we fine-tune the models for 60 epochs with a learning rate of 7e-5.
 
+**Imagenet-1K** (BS 128 with A100)
 
-**Detection and Segmentation** We used the MS COCO dataset to finetune a Cascade Mask-RCNN network. For this purpose, we trained all models with AdamW optimizer with an initial learning rate of 1e-4, a 3 x schedule, weight decay of 5e-2 and a total batch size of 16 on 8 A100 GPUs
+**Conv-Based**
 
-**Semantic Segmentation**: we employed ADE20K dataset  to finetune an UperNet network with pre-trained FasterViT backbones. Specifically, we trained all models with Adam-W optimizer and by using a learning rate of 6e-5, weight decay of 1e-2 and total batch size of 16 on 8 A100 GPUs
+| Model            | Image Size (Px) | Param (M) | Flops (G) | Throughput (Img/Sec) | Top-1 |
+| ---------------- | --------------- | --------- | --------- | -------------------- | ----- |
+| ConvNeXt-T       | 224             | 28.6      | 4.5       | 3196                 | 82.0  |
+| ConvNeXt-S       | 224             | 50.2      | 8.7       | 2008                 | 83.1  |
+| ConvNeXt-B       | 224             | 88.6      | 15.4      | 1485                 | 83.8  |
+| RegNetY-040      | 288             | 20.6      | 6.6       | 3227                 | 83.0  |
+| ResNetV2-101     | 224             | 44.5      | 7.8       | 4019                 | 82.0  |
+| EfficientNetV2-S | 384             | 21.5      | 8.0       | 1735                 | 83.9  |
+**Transformer-Based**
+
+| Model          | Image Size (Px) | Param (M) | Flops (G) | Throughput (Img/Sec) | Top-1 |
+| -------------- | :-------------: | :-------: | :-------: | :------------------: | :---: |
+| Swin-T         |       224       |   28.3    |    4.4    |         2758         | 81.3  |
+| Swin-S         |       224       |   49.6    |    8.5    |         1720         | 83.2  |
+| SwinV2-T       |       256       |   28.3    |    4.4    |         1674         | 81.8  |
+| SwinV2-S       |       256       |   49.7    |    8.5    |         1043         | 83.8  |
+| SwinV2-B       |       256       |   87.9    |   15.1    |         535          | 84.6  |
+| Twins-B        |       224       |   56.1    |    8.3    |         1926         | 83.1  |
+| DeiT3-L        |       224       |   304.4   |   59.7    |         535          | 84.8  |
+| PoolFormer-M58 |       224       |   73.5    |   11.6    |         884          | 82.4  |
+**FasterViT (Hybrid Transformer)**
+
+| Model       | Image Size (Px) | Param (M) | Flops (G) | Throughput (Img/Sec) |  Top-1   |
+| ----------- | :-------------: | :-------: | :-------: | :------------------: | :------: |
+| FasterViT-0 |       224       |   31.4    |    3.3    |       **5802**       | **82.1** |
+| FasterViT-1 |       224       |   53.4    |    5.3    |       **4188**       | **83.2** |
+| FasterViT-2 |       224       |   75.9    |    8.7    |       **3161**       | **84.2** |
+| FasterViT-3 |       224       |   159.5   |   18.2    |       **1780**       | **84.9** |
+| FasterViT-4 |       224       |   424.6   |   36.6    |       **849**        | **85.4** |
+| FasterViT-5 |       224       |   957.5   |   113.0   |       **449**        | **85.6** |
+| FasterViT-6 |       224       |  1360.0   |   142.0   |       **352**        | **85.8** |
+
+
+
+![[Pasted image 20241125233536.png| 400]]
+
+
+##### **Detection and Segmentation**:
+We used the MS COCO dataset to finetune a Cascade Mask-RCNN network. For this purpose, we trained all models with AdamW optimizer with an initial learning rate of 1e-4, a 3 x schedule, weight decay of 5e-2 and a total batch size of 16 on 8 A100 GPUs
+
+| Backbone      | throu. (im/sec) | AP mask            | AP box                 |
+| ------------- | --------------- | ------------------ | ---------------------- |
+|               |                 | Box   50   75      | Mask  50      75       |
+| Swin-T        | 161             | 50.4  69  54.7     | 43.7   66.6   47.3     |
+| ConvNeXt-T    | 166             | 50.4  69  54.8     | 43.7   66.5   47.3     |
+| DeiT-Small/16 | 269             | 48.0  67  51.7     | 41.4   64.2   44.3     |
+| FasterViT-2   | 287             | **52.1  71  56.6** | **45.4   68.4   49.0** |
+|               |                 |                    |                        |
+| Swin-S        | 119             | 51.9  70.7  56.3   | 45.0  68.2  48.8       |
+| X101-32       | 124             | 48.1  66.5  52.4   | 41.6  63.9  45.2       |
+| ConvNeXt-S    | 128             | 51.9  70.8  56.5   | 45.0  68.4  49.1       |
+| FasterViT-3   | 159             | 52.4  71.1  56.7   | 45.4  68.7  49.3       |
+|               |                 |                    |                        |
+| X101-64       | 86              | 48.3  66.4  52.3   | 41.7  64.0  45.1       |
+| Swin-B        | 90              | 51.9  70.5  56.4   | 45.0  68.1  48.9       |
+| ConvNeXt-B    | 101             | 52.7  71.3  57.2   | 45.6  68.9  49.5       |
+| FasterViT-4   | 117             | 52.9  71.6  57.7   | 45.8  69.1  49.8       |
+
+
+##### **Semantic Segmentation**: 
+we employed ADE20K dataset  to finetune an UperNet network with pre-trained FasterViT backbones. Specifically, we trained all models with Adam-W optimizer and by using a learning rate of 6e-5, weight decay of 1e-2 and total batch size of 16 on 8 A100 GPUs
+
+| Model       | Throughput | FLOPs | IoU(ss/ms) |
+| ----------- | ---------- | ----- | ---------- |
+| Swin-T      | 350        | 945   | 44.5/45    |
+| ConvNeXt-T  | 363        | 939   | -/46.7     |
+| FasterViT-2 | 377        | 974   | 47.2/48.4  |
+|             |            |       |            |
+| Twins-SVT-B | 204        | -     | 47.7/48.9  |
+| Swin-S      | 219        | 1038  | 47.6/49.5  |
+| ConvNeXt-S  | 234        | 1027  | -/49.6     |
+| FasterViT-3 | 254        | 1076  | 48.7/49.7  |
+|             |            |       |            |
+| Twins-SVT-L | 164        | -     | 48.8/50.2  |
+| Swin-B      | 172        | 1188  | 48.1/49.7  |
+| ConvNeXt-B  | 189        | 1170  | -/49.9     |
+| FasterViT-4 | 202        | 1290  | 49.1/50.3  |
