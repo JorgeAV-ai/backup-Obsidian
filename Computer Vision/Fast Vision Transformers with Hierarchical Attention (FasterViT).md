@@ -46,13 +46,12 @@ def FasterViTStem():
 
 ```
 
-*Small reminder, the goal of a Batchnorm is to reduce the covariate shift and makes the distribution more stable, accelerating the training and achieving higher accuracy.* 
+###### *Comments*
+*BatchNorm:* goal of a Batchnorm is to reduce the covariate shift and makes the distribution more stable, accelerating the training and achieving higher accuracy. 
 
-*Additional reminder: ReLU states as Rectified linear Unit --> $ReLU(x) = max(0,x)$*
+*ReLU*: stands as Rectified linear Unit --> $ReLU(x) = max(0,x)$
 
-*third reminder: formula Convolution --> * $\dfrac{Input - kernel + 2*Padding}{Stride}$
-
-
+Convolution formula   $\dfrac{Input - kernel + 2*Padding}{Stride}$
 
 ##### 2.2 **Residual Conv Block**s: 
 
@@ -74,12 +73,14 @@ def ResidualConvBlock(input):
 
 ```
 
+##### *Comments:*
+*GELU*: stands as Gaussian Error Linear Unit, formula is a bit more complicated than ReLU, is derived from an approximation of "TODO"
 ##### 2.3 **Downsample**: 
-reduced by 2 between stages 2D Layer norm + conv Layer 3x3, Stride=2
 
 ```
-def DownSample():
-	
+def DownSample(dim):
+	LayerNorm2d(dim)
+	Conv2d(dim, dim*2, kernel_size, stride, padding, bias=False)	
 
 ```
 
@@ -87,7 +88,8 @@ def DownSample():
 ##### 2.4 **Hierarchical attention Block** :
 
 ![[Pasted image 20241124164924.png]]
-*Carrier Token*: Summarize role of the entire local window. 
+*Carrier Token*: Summarize role of the entire local window.
+
 *First Attention block* is applied on CTs to summarize and pass global information. 
 Then  Window tokens + CTs are concatenated --> every local window has access only to its own set of CTs. 
 Performing self attention on concatenated tokens we facilitate local and global information exchange at reduced cost.
@@ -96,7 +98,7 @@ We Initialize CTs by pooling them to $L = 2^c$  tokens per window, being $c$ som
 $$ \hat{x_c} = Conv_{3\times3}(x)$$
 $$\hat{x}_{ct} = AvgPool_{H \times W \rightarrow n^2 L}(\hat{x_c})
 $$
-
+	
 
 **HAT block**:
 $$ \hat{x_{ct}} = \hat{x_{ct}} + \gamma_{1} \cdot MHSA(LN(\hat{x_{ct}}))$$
