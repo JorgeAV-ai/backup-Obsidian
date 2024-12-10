@@ -73,8 +73,14 @@ def ResidualConvBlock(input):
 
 ```
 
-##### *Comments:*
-*GELU*: stands as Gaussian Error Linear Unit, formula is a bit more complicated than ReLU, is derived from an approximation of "TODO"
+###### *Comments:*
+*GELU*: stands as Gaussian Error Linear Unit, formula is a bit more complicated than ReLU, is derived from an approximation of the cumulative distribution (CDF) of the standard normal distribution
+$$
+GELU(x) = x \times CDF(x) = x \frac{1}{2}(1  + erf(\frac{x}{\sqrt{2}})) 
+$$being *erf* the Gaussian error function. Due to the complex function, it is used commonly an approximation of CDF, $1 + erf (\frac{x}{\sqrt{2}}) = 1 + tanh(\sqrt{\frac{2}{\pi}}(x + 0.044715x^3))$. Leaving the formula as follows:
+$$GELU_{tanh}(x) = 0.5x(1 + tanh(\sqrt{\frac{2}{\pi}(x + 0.044715x^3)})) $$
+There is also a simpler sigmoid-based approximation:
+$$GELU_{sigmoid}(x) = x \times sigmoid(1.702 \times x)$$
 ##### 2.3 **Downsample**: 
 
 ```
@@ -104,6 +110,11 @@ $$
 $$ \hat{x_{ct}} = \hat{x_{ct}} + \gamma_{1} \cdot MHSA(LN(\hat{x_{ct}}))$$
 $$ \hat{x_{ct}} = \hat{x_{ct}} + \gamma_{2} \cdot MLP_{d \rightarrow 4d \rightarrow d}(LN(\hat{x_{ct}}))$$
 where MHSA represents Multi head self attention and MLP is a 2-layer MLP with GeLU act. function
+
+```
+def HAT():
+
+```
 
 ## 3 Results
 
