@@ -1,7 +1,7 @@
 > [!quote] Information 
 > * paper Paper [Link](https://arxiv.org/pdf/2111.15664)
 > * @ Conference ECCV'22
-> * G Github [Link](https://github.com/clovaai/donut)
+> * git Github [Link](https://github.com/clovaai/donut)
 > *  tag Tags 
 > 	[[Visual Document Understanding (VDU)]]
 > 	[[Document Information Extraction]]

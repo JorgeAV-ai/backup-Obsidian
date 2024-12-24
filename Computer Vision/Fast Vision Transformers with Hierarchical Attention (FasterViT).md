@@ -1,5 +1,8 @@
 > [!quote] Information 
+> * @ Conference ICLR 2024 
 > * paper Paper [Link](https://arxiv.org/pdf/2306.06189)
+> * git Github [Link](https://github.com/NVlabs/FasterViT)
+> * hf Huggingface [Link](https://huggingface.co/papers/2306.06189)
 > * calendar Date 1 April 2024
 > * ? Motivation: 
 > 		Vision transformers models still face high computational cost due to quadratic complexity in self-attentions. In addition, it is well known that CNNs provides great local features representations, feature that Vision Transformers lack of,  since they provide global feature learning.
@@ -75,12 +78,13 @@ def ResidualConvBlock(input):
 
 ###### *Comments:*
 *GELU*: stands as Gaussian Error Linear Unit, formula is a bit more complicated than ReLU, is derived from an approximation of the cumulative distribution (CDF) of the standard normal distribution
-$$
-GELU(x) = x \times CDF(x) = x \frac{1}{2}(1  + erf(\frac{x}{\sqrt{2}})) 
-$$being *erf* the Gaussian error function. Due to the complex function, it is used commonly an approximation of CDF, $1 + erf (\frac{x}{\sqrt{2}}) = 1 + tanh(\sqrt{\frac{2}{\pi}}(x + 0.044715x^3))$. Leaving the formula as follows:
-$$GELU_{tanh}(x) = 0.5x(1 + tanh(\sqrt{\frac{2}{\pi}(x + 0.044715x^3)})) $$
+$$GELU(x) = x \times CDF(x) = x \frac{1}{2}(1  + erf(\frac{x}{\sqrt{2}}))$$ being *erf* the Gaussian error function. Due to the complex function, it is used commonly an approximation of CDF, $1 + erf (\frac{x}{\sqrt{2}}) = 1 + tanh(\sqrt{\frac{2}{\pi}}(x + 0.044715x^3))$.  Leaving the formula as follows:
+$$GELU_{tanh}(x) = 0.5x(1 + tanh(\sqrt{\frac{2}{\pi}(x + 0.044715x^3)}))$$
+
 There is also a simpler sigmoid-based approximation:
 $$GELU_{sigmoid}(x) = x \times sigmoid(1.702 \times x)$$
+
+
 ##### 2.3 **Downsample**: 
 
 ```
@@ -101,9 +105,8 @@ Then  Window tokens + CTs are concatenated --> every local window has access onl
 Performing self attention on concatenated tokens we facilitate local and global information exchange at reduced cost.
 Feature map is divided into $n \times n$ local windows, being $n$  $\dfrac{H \times W}{k^2}$ , where $k$ is the window size.
 We Initialize CTs by pooling them to $L = 2^c$  tokens per window, being $c$ something called *control latency*, fixed to 1.
-$$ \hat{x_c} = Conv_{3\times3}(x)$$
-$$\hat{x}_{ct} = AvgPool_{H \times W \rightarrow n^2 L}(\hat{x_c})
-$$
+$$\hat{x_c} = Conv_{3\times3}(x)$$
+$$\hat{x}_{ct} = AvgPool_{H \times W \rightarrow n^2 L}(\hat{x_c})$$
 	
 
 **HAT block**:

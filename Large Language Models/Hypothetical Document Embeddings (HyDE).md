@@ -2,7 +2,7 @@
 > [!quote] Information 
 > * paper Paper [Link](https://arxiv.org/pdf/2212.10496)
 > * @ Conference ACL'23
-> * G Github [Link](https://github.com/texttron/hyde)
+> * git Github [Link](https://github.com/texttron/hyde)
 > *  tag Tags 
 > 	[[Dense Retrieval]]
 > 	[[Instructions-Following Language Models]]
