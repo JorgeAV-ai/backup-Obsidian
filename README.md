@@ -9,7 +9,7 @@ Why am I doing this? Well, first of all, I am going to talk about myself. I am a
 
 Nevertheless, I came up with a temporary solution, this REPO, for the memory problems, I can easily search for information using the search bar, thanks to git I can keep a record of every change, people can always check what I have written, Obsidian has interesting things like article mapping. It is a win-win. 
 
-Having said all that, my idea is to force myself to keep a track and understand each concept, with little reminders of the explanation of each mention (to another paper/article/model...). If you have made it this far, thank you for your reading! I encourage you to connect me to the social networks, my idea is also to derive part of the work done here to other social media.
+Having said all that, my idea is to force myself to keep a track and understand each concept, with little reminders of the explanation of each mention (to another paper/article/model...). If you have made it this far, thank you for your reading! I encourage you to connect me to the social networks, also if you have any feedback, do not hesitate to write me or send a PR! 
 
 Have a nice day,
 Jorge
