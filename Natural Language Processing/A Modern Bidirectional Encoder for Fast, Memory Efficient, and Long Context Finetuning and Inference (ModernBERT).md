@@ -16,3 +16,9 @@
 > 	[[Towards Enhanced Efficiency]]
 > 	[[Self-Attention mechanisms]]
 
+## 1. Introduction
+
+We all rememember the BERT dominance in a big majority of NLP tasks before the appearance of LLMs. During these years of LLMs (encoder-decoder) Improvements, people     
+## 2. Architecture
+## 3. Data
+## 4. Results
