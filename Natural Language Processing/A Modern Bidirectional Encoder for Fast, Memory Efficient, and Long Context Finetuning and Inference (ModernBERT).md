@@ -18,7 +18,7 @@
 
 ## 1. Introduction
 
-We all remember the dominance  of BERT in the vast majority of NLP tasks before the advent of LLMs. During these years of LLMs (encoder-decoder) improvements, many new techniques dropped with the idea of improving efficiency and long context, but none of them have been applied to only encoder. This paper improves the basic BERT with some changes to improve its efficiency and longer context.
+We all remember the dominance  of BERT in the vast majority of NLP tasks before the advent of LLMs. During these years of LLMs (encoder-decoder) improvements, many new techniques dropped with the idea of improving efficiency and long context, but only some of them have been applied to only encoder. This paper improves the basic BERT with some changes to improve its efficiency and longer context.
 ## 2. Architecture
 The architecture keeps the standard transformer architecture with additional advances efficiency-oriented. 
 
@@ -29,7 +29,7 @@ The architecture keeps the standard transformer architecture with additional adv
 - Alternating Attention, alternate between global attention --> every token within a sequence attends to every other token, and local attention --> tokens attend only to each other within small sliding window. In this case, ModernBert employs Global Attention with RoPE theta of 160,000 and the remaining layers use a 128 token,  with a local sliding window attention with a RoPE of theta of 10,000.
 - Unpadding, removes useless padding tokens, concatenate all sequence from minibatch into a single sequence, and process itt as a bach of one. (Usage of Flash Attention's variable length attention and RoPE implementations, leading to a 10-20 percent performance improvement over other unpadding methods).
 - Flash Attention, compute and memory efficient attention kernels.
-- Torch.compile, 10 percent improvement in throughput with negligible compilation overhead
+- Torch.compile, 10 % improvement in throughput with negligible compilation overhead
 
 2T tokens of English data from a variety of data sources, including web documents, code, sientific literature, etc.
 
@@ -48,8 +48,6 @@ Batch Size Schedule: smaller gradiendt accumulated batches, incresing over time 
 Weight Init and tiling, Base version is Initialized with random weights following Megatron initalization, for ModernBERT-large, it starts with Base weights.
 
 Context Length Extension, After training on 1.7T at 1024 Seq Length and RoPE theta of 10,000. --> Extends the native context length of ModernBert to  8192 tokens by increasing global attention layer's RoPE theta to 160,000 and train for an additional 300 billion tokens. We first train at a constant lower learning rate6 of 3e-4 for 250 billion tokens on an 8192 token mixture of the original pretraining dataset sampled then upsample higher-quality sources and conduct the decay phase with a 1−sqrt LR schedule over 50 billion tokens
-
-
 
 ## 3. Data
 

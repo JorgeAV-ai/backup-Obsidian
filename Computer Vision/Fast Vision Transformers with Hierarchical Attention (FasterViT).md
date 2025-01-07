@@ -108,6 +108,24 @@ We Initialize CTs by pooling them to $L = 2^c$  tokens per window, being $c$ som
 $$\hat{x_c} = Conv_{3\times3}(x)$$
 $$\hat{x}_{ct} = AvgPool_{H \times W \rightarrow n^2 L}(\hat{x_c})$$
 	
+```
+window_size = 7
+ct_size = 1
+output_size_ct = int(ct_size * input_res/window_size)
+stride_size_ct = int(input_resolution/output_size)
+kernel_size_ct = input_res - (output_size - 1) * stride_size 
+kernel_size_pos_embed = 3
+padding = 1
+
+def InitializeCarrierToken():
+	conv2D(dim, dim, kernel_size_pos_embed, padding, groups=dim)
+	AvgPool2D(kernel_size_ct, stride_size_ct)
+	ConvertTo(B,C,H // window_size, window_size, W // window_size, window_size)
+	ReshapeTo(-1,H*W,C)	
+
+```
+
+
 
 **HAT block**:
 $$ \hat{x_{ct}} = \hat{x_{ct}} + \gamma_{1} \cdot MHSA(LN(\hat{x_{ct}}))$$
@@ -116,6 +134,13 @@ where MHSA represents Multi head self attention and MLP is a 2-layer MLP with Ge
 
 ```
 def HAT():
+	PosEmbeds()
+	LayerNorm2D
+
+
+
+def PosEmbeds():
+	
 
 ```
 
