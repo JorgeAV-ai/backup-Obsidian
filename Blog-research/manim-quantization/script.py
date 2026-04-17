@@ -109,7 +109,7 @@ class Scene1MemoryWall(Scene):
             Text("80 GB class GPU memory", font=MONO, font_size=SMALL_SIZE, color=P["AMBER"]),
             0.55,
         )
-        guide_label.next_to(guide, LEFT, buff=0.35).shift(UP * 0.18)
+        guide_label.move_to(np.array([-4.15, base_y + 3.9 * 80 / max_gb + 0.25, 0]))
 
         note = soften(
             Text("Lower bit-width shrinks the memory footprint directly", font=MONO, font_size=SMALL_SIZE, color=P["TEXT"]),
@@ -149,12 +149,14 @@ class Scene2QuantizationIntuition(Scene):
             for x in np.linspace(-2.5, 2.5, 18)
         ])
         left_points.move_to(left_panel.get_center() + LEFT * 0.1)
-        for i, dot in enumerate(left_points):
-            dot.set_fill(interpolate_color(P["PEACH"], P["CORAL"], i / max(1, len(left_points) - 1)))
+        point_colors = color_gradient([P["PEACH"], P["CORAL"]], len(left_points))
+        for dot, color in zip(left_points, point_colors):
+            dot.set_fill(color)
 
         levels_y = [-0.85, -0.25, 0.35, 0.95]
+        level_colors = color_gradient([P["SKY"], P["VIOLET"]], len(levels_y))
         steps = VGroup()
-        for row, y in enumerate(levels_y):
+        for row, (y, level_color) in enumerate(zip(levels_y, level_colors)):
             step = VGroup()
             row_width = 1.9 + 0.35 * row
             for col in range(4 if row < 3 else 5):
@@ -164,7 +166,7 @@ class Scene2QuantizationIntuition(Scene):
                     height=0.28,
                     stroke_color=P["BLUE"],
                     stroke_width=1.8,
-                    fill_color=interpolate_color(P["SKY"], P["VIOLET"], row / 3),
+                    fill_color=level_color,
                     fill_opacity=0.25,
                 )
                 step.add(rect)
