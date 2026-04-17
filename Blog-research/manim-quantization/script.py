@@ -196,41 +196,39 @@ class Scene3QuantizationFormula(Scene):
         self.camera.background_color = P["BG"]
         self.add(title_block("Uniform Quantization", "Each symbol plays one concrete role"))
 
-        quant = MathTex(
-            r"W_q",
-            r"=",
-            r"\operatorname{RoundClip}\left(",
-            r"\frac{W}{\Delta}",
-            r"+",
-            r"Z",
-            r"\right)",
-            font_size=44,
-            color=P["TEXT"],
-        )
-        quant[0].set_color(P["VIOLET"])
-        quant[2].set_color(P["RED"])
-        quant[3].set_color(P["TEXT"])
-        quant[3][1].set_color(P["BLUE"])
-        quant[3][3].set_color(P["GREEN"])
-        quant[5].set_color(P["AMBER"])
+        def text_piece(content, color=P["TEXT"], size=BODY_SIZE, bold=False):
+            return Text(
+                content,
+                font=MONO,
+                font_size=size,
+                color=color,
+                weight=BOLD if bold else NORMAL,
+            )
+
+        quant = VGroup(
+            text_piece("W_q", P["VIOLET"], 40, True),
+            text_piece(" = ", P["TEXT"], 40),
+            text_piece("RoundClip(", P["RED"], 40, True),
+            text_piece("W", P["BLUE"], 40, True),
+            text_piece(" / ", P["TEXT"], 40),
+            text_piece("Δ", P["GREEN"], 40, True),
+            text_piece(" + ", P["TEXT"], 40),
+            text_piece("Z", P["AMBER"], 40, True),
+            text_piece(")", P["RED"], 40, True),
+        ).arrange(RIGHT, buff=0.02)
         quant.move_to(UP * 1.3)
 
-        dequant = MathTex(
-            r"W_{\mathrm{recon}}",
-            r"=",
-            r"\left(",
-            r"W_q",
-            r"-",
-            r"Z",
-            r"\right)",
-            r"\Delta",
-            font_size=36,
-            color=P["TEXT"],
-        )
-        dequant[0].set_color(P["TEXT"])
-        dequant[3].set_color(P["VIOLET"])
-        dequant[5].set_color(P["AMBER"])
-        dequant[7].set_color(P["GREEN"])
+        dequant = VGroup(
+            text_piece("W_recon", P["TEXT"], 33, True),
+            text_piece(" = ", P["TEXT"], 33),
+            text_piece("(", P["TEXT"], 33),
+            text_piece("W_q", P["VIOLET"], 33, True),
+            text_piece(" - ", P["TEXT"], 33),
+            text_piece("Z", P["AMBER"], 33, True),
+            text_piece(")", P["TEXT"], 33),
+            text_piece(" × ", P["TEXT"], 33),
+            text_piece("Δ", P["GREEN"], 33, True),
+        ).arrange(RIGHT, buff=0.02)
         dequant.move_to(np.array([0, 0.25, 0]))
 
         error_note = soften(
