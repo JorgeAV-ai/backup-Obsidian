@@ -4,15 +4,19 @@ Quantization makes large language models practical to run by compressing their n
 
 ### 1.1 The memory wall
 
-Large language models do not only scale into a compute problem; they scale into a memory problem. As parameter counts grow, the cost of storing and moving weights becomes one of the main constraints on inference.
+Large language models do not only scale into a compute problem; they scale into a memory problem. Every parameter must be stored somewhere, moved through memory, and read fast enough for inference to remain practical. As models grow from billions to tens or hundreds of billions of parameters, that movement of weights becomes one of the main bottlenecks.
+
+This is what people often call the memory wall: compute hardware may keep improving, but memory capacity and bandwidth do not scale at the same pace. A model can therefore become difficult to run not because the arithmetic is impossible, but because its weights are too expensive to hold and move efficiently.
 
 ### 1.2 Why scaling LLMs makes this unavoidable
 
-A large model in FP16 or BF16 can require far more memory than consumer hardware can provide comfortably. Quantization exists because, without compression, many useful models remain expensive or impractical to run.
+A large model in FP16 or BF16 can require far more memory than consumer hardware can provide comfortably. A 70B model stored in 16-bit precision already pushes far beyond what most local setups can load easily, and that estimate only covers the static weights. In practice, inference also needs room for activations, temporary buffers, and the KV cache.
+
+That is why quantization is not a niche optimization. Without some form of compression, many useful models remain locked behind expensive GPUs, server-grade deployments, or aggressive offloading strategies. Quantization is the technique that turns this from a hard hardware constraint into a controllable accuracy-versus-efficiency trade-off.
 
 ### 1.3 What this article will explain
 
-This article explains how quantization works, why naive quantization fails in large models, how modern methods respond to that failure, and what costs appear when precision is reduced.
+This article follows that trade-off from start to finish. First, it explains what quantization is as a mathematical operation. Then it shows why the naive version of that idea breaks large transformers. After that, it maps the main modern approaches that try to control the resulting error, and finally it looks at the capabilities and behaviors that can quietly degrade when precision goes down.
 
 ![[quantization_memory_wall.png]]
 
@@ -20,7 +24,9 @@ This article explains how quantization works, why naive quantization fails in la
 
 ### 2.1 From high precision to low-bit representation
 
-Quantization maps values from a higher-precision space into a smaller set of discrete levels. The gain is smaller memory and faster movement of data; the cost is reduced numerical resolution.
+At its core, quantization means replacing a rich numerical vocabulary with a smaller one. Instead of letting a weight take many finely separated floating-point values, we force it to live on a smaller discrete grid. The more aggressively we reduce the number of available levels, the smaller the representation becomes.
+
+That gives us two immediate benefits. First, the model needs less memory because each weight uses fewer bits. Second, the hardware has less data to move around, which often improves practical inference speed. But those gains come from a real sacrifice: values that used to be distinct may now collapse into the same low-bit representation.
 
 ![[quantization_intuition.png]]
 
@@ -28,11 +34,17 @@ Quantization maps values from a higher-precision space into a smaller set of dis
 
 The quantization pipeline can be understood as a sequence of simple operations: scale a value, shift it into a discrete grid, round it, clip it to the allowed range, and then reconstruct it approximately during inference.
 
+The blue `W` is the original high-precision value. The green `Δ` controls the size of each quantization step, which means it controls the resolution of the grid itself. The amber `Z` shifts that grid so zero can be represented correctly when an asymmetric mapping is needed. The red `Round + Clip` stage then forces the value into the discrete integer range that the target bit-width allows, producing the violet `W_q`.
+
+At inference time, the model does not recover the original value exactly. It reconstructs an approximation by reversing the mapping with the same scale and offset. That is why dequantization is not a perfect inverse: once several nearby real values have been collapsed into one discrete level, the lost detail cannot be recovered.
+
 ![[quantization_formula.png]]
 
 ### 2.3 What is actually lost when precision goes down
 
 Lower precision does not randomly damage the model. It reduces the number of distinct values the model can represent, which increases approximation error and makes nearby values harder to distinguish.
+
+The important point is that the loss is structured. If the quantization grid is coarse, then small differences in weights disappear first. That means the model keeps the rough shape of its parameters, but loses fine-grained numerical detail. When this happens repeatedly across many tensors and layers, the accumulated error becomes the central problem every quantization method is trying to manage.
 
 ## 3. Why Naive Quantization Fails in LLMs
 
