@@ -46,6 +46,8 @@ Lower precision does not randomly damage the model. It reduces the number of dis
 
 The important point is that the loss is structured. If the quantization grid is coarse, then small differences in weights disappear first. That means the model keeps the rough shape of its parameters, but loses fine-grained numerical detail. When this happens repeatedly across many tensors and layers, the accumulated error becomes the central problem every quantization method is trying to manage.
 
+The next question is why that error becomes especially dangerous in large language models rather than merely mildly annoying.
+
 ## 3. Why Naive Quantization Fails in LLMs
 
 ### 3.1 Why simple rounding breaks large models
@@ -103,6 +105,8 @@ The point of this table is not to memorize brands. It is to notice that every ro
 Once the trade-offs are clear, the method landscape becomes easier to reason about. GGUF is the natural choice when you want broad local portability and a format that works well across CPUs and Apple Silicon. AWQ and GPTQ are more natural when GPU inference is the priority, but they optimize different sides of the trade-off: AWQ tends to be favored when preserving quality matters more, while GPTQ is often chosen when throughput is central.
 
 EXL2 makes sense when memory fitting is itself the main optimization problem and you want finer bitrate control. QAT belongs to a different category: it is not the easiest option, but it becomes attractive when aggressive low-bit deployment matters enough to justify retraining or fine-tuning the model to survive quantization noise.
+
+But choosing a method is only half the story. The harder question is what kinds of capability and behavior become less stable once that compression has been applied.
 
 ## 5. The Hidden Costs of Quantization
 
