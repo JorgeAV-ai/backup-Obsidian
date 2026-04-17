@@ -50,15 +50,23 @@ The important point is that the loss is structured. If the quantization grid is 
 
 ### 3.1 Why simple rounding breaks large models
 
-If model weights are just numbers, it is tempting to think that quantization is only a matter of rounding them more aggressively. In practice, large transformers are much more fragile than that intuition suggests.
+If model weights are just numbers, it is tempting to think that quantization is only a matter of rounding them more aggressively. In a small toy example, that intuition seems reasonable: shrink the representation, accept some error, and move on. But large transformers are not just large tables of interchangeable numbers. Their performance depends on very uneven numerical structure spread across layers, channels, and tokens.
+
+That means naive rounding does not produce a smooth, uniform loss of quality. It can destroy precisely the distinctions the network relies on most. The result is not only lower accuracy, but sometimes a much more abrupt collapse in coherence, perplexity, or reasoning quality than a simple “less precision equals slightly more noise” mental model would predict.
 
 ### 3.2 Outliers, step-size inflation, and massive activations
 
-The main failure mode is not rounding by itself but what rounding does when a tensor contains extreme values. Outliers can stretch the scale so much that the useful resolution of ordinary values collapses.
+The main failure mode is not rounding by itself but what rounding does when a tensor contains extreme values. If a tensor contains one or a few outliers with much larger magnitude than the rest, the quantization scale has to stretch to include them. That larger scale means each discrete step now covers a wider real-valued range.
+
+Once that happens, the ordinary values in the center of the distribution lose useful resolution. Instead of being mapped to many distinct levels, they collapse into a much smaller number of buckets. In effect, the outlier forces the entire tensor to pay for its range. This is why the green `Δ` in the formula matters so much: when `Δ` becomes too large, the grid becomes too coarse for the bulk of the data.
+
+The same idea extends beyond static weights. Large models can also develop massive activations, including token-specific spikes that behave like attention sinks. These are not harmless edge cases. They create exactly the kind of disproportionate scale problem that naive quantization handles badly.
 
 ### 3.3 Why this problem gets worse at scale
 
-As models grow, these pathologies become more structural. Large transformers develop outlier channels, token-level activation spikes, and behaviors that make naive quantization much less reliable.
+As models grow, these pathologies become more structural. Large transformers develop outlier channels, token-level activation spikes, and behaviors that make naive quantization much less reliable. The problem is therefore not just “more parameters means more rounding error.” The problem is that larger models develop numerical geometry that is harder to compress with one crude global rule.
+
+Once naive quantization is understood as a failure of scale management and error control, modern quantization methods stop looking like arbitrary acronyms and start looking like targeted responses.
 
 ![[quantization_outlier_distortion.png]]
 
