@@ -22,9 +22,9 @@ At its core, quantization means replacing a rich numerical vocabulary with a sma
 
 That gives us two immediate benefits. First, the model needs less memory because each weight uses fewer bits. Second, the hardware has less data to move around, which often improves practical inference speed. But those gains come from a real sacrifice: values that used to be distinct may now collapse into the same low-bit representation.
 
-The figure below makes that trade-off concrete with a single number. Read it from top to bottom: in FP32, the stored value keeps almost all of its decimal detail, so the approximation error is effectively zero; in FP16, some detail is rounded away, but the stored value is still close to the original; in INT4, the representation becomes much coarser, so the stored value collapses into a rougher approximation and the error grows visibly. The point is not the specific number itself, but the mechanism: fewer bits mean fewer representable values, and fewer representable values mean more information loss.
+The figure below shows that sacrifice with a single value written at different precisions. In FP32, the number preserves almost all of its decimal detail, so the approximation error is effectively negligible. In FP16, part of that detail is rounded away, but the stored value is still close to the original. In INT4, the model can no longer preserve fine decimal structure at all, so the stored value becomes much rougher and the error grows sharply. The key idea is simple: the lower the precision, the less faithfully the model can store the original number.
 
-![[quantization_intuition.png]]
+![[quantization_precision_loss.png]]
 ### 2.1 The quantization formula
 
 The quantization pipeline can be understood as a sequence of simple operations: scale a value, shift it into a discrete grid, round it, clip it to the allowed range, and then reconstruct it approximately during inference [1].
@@ -85,7 +85,7 @@ Today’s ecosystem is not a random list of acronyms. Formats and methods such a
 | EXL2 | mixed bitrate quantization tuned to fit VRAM targets | flexible memory / speed trade-off | multi-GPU or VRAM-constrained ExLlama setups |
 | QAT | train or fine-tune with quantization in the loop | best robustness at very low precision | cases where retraining cost is acceptable |
 
-The point of this table is not to memorize brands. It is to notice that every row protects something slightly different: portability, salient weights, second-order error control, bitrate flexibility, or robustness under retraining. The table compresses ideas drawn from the GGUF specification, AWQ, GPTQ, ExLlamaV2 / EXL2, and recent LLM-focused QAT work such as LLM-QAT and EfficientQAT [9][6][4][10][11][12].
+The point of this table is not to memorize brands. It is to notice that every row protects something slightly different: portability, salient weights, second-order error control, bitrate flexibility, or robustness under retraining. The table compresses ideas drawn from the GGUF specification, AWQ, GPTQ, ExLlamaV2 / EXL2, and recent LLM-focused QAT work such as LLM-QAT and EfficientQAT [9] [6] [4] [10] [11] [12].
 
 ### 4.4 When GGUF, AWQ, GPTQ, EXL2, or QAT make sense
 
@@ -99,9 +99,9 @@ But choosing a method is only half the story. The harder question is what kinds 
 
 ### 5.1 Capability degradation: reasoning, context, and multimodal reliability
 
-Reducing precision can degrade reasoning quality and long-context behavior, and the same low-bit robustness problem also matters for multimodal systems. These degradations are often uneven: some tasks remain stable while others deteriorate sharply. A model may preserve fluency and still lose reliability on multi-step mathematics, long-chain inference, or tasks that depend on small internal distinctions being preserved across many layers [15] [16][12].
+Reducing precision can degrade reasoning quality and long-context behavior, and the same low-bit robustness problem also matters for multimodal systems. These degradations are often uneven: some tasks remain stable while others deteriorate sharply. A model may preserve fluency and still lose reliability on multi-step mathematics, long-chain inference, or tasks that depend on small internal distinctions being preserved across many layers [15]  [16] [12].
 
-This unevenness is one reason quantization can be misleading if it is evaluated only through a small benchmark slice. A model that looks almost unchanged on short prompts may still lose quality on longer contexts, harder reasoning tasks, or multimodal inputs where the error compounds more severely [13]    [14][16].
+This unevenness is one reason quantization can be misleading if it is evaluated only through a small benchmark slice. A model that looks almost unchanged on short prompts may still lose quality on longer contexts, harder reasoning tasks, or multimodal inputs where the error compounds more severely [13]    [14]  [16].
 
 ### 5.2 Silent failures in agents and real-world behavior
 
@@ -123,7 +123,7 @@ The same compression that makes deployment practical can also remove useful reso
 
 ### 6.1 Where research is going next
 
-Current research is pushing toward smarter low-bit methods, better protection of sensitive activations, hardware-aware formats, and finer evaluation of what compression changes beyond benchmark accuracy. The broad direction is clear: future work is not only about fitting models into fewer bits, but about learning which parts of a model can be compressed aggressively and which parts must stay numerically protected [6]  [12][17].
+Current research is pushing toward smarter low-bit methods, better protection of sensitive activations, hardware-aware formats, and finer evaluation of what compression changes beyond benchmark accuracy. The broad direction is clear: future work is not only about fitting models into fewer bits, but about learning which parts of a model can be compressed aggressively and which parts must stay numerically protected [6]  [12]  [17].
 
 That is why quantization should be understood as a core design layer rather than a final storage trick. It sits between model quality, deployment cost, and behavioral reliability, and the best modern methods are all attempts to balance those three pressures more intelligently.
 
