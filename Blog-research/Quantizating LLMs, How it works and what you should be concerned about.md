@@ -1,12 +1,15 @@
+
+## 1. Introduction to Quantization
+
 Quantization makes large language models practical to run by compressing their numerical representation, but every bit removed creates trade-offs in accuracy, robustness, and behavior.
 
 Large language models do not only scale into a compute problem; they scale into a memory problem. Every parameter must be stored somewhere, moved through memory, and read fast enough for inference to remain practical. As models grow from billions to tens or hundreds of billions of parameters, that movement of weights becomes one of the main bottlenecks.
 
 This is what people often call the memory wall: compute hardware may keep improving, but memory capacity and bandwidth do not scale at the same pace. A model can therefore become difficult to run not because the arithmetic is impossible, but because its weights are too expensive to hold and move efficiently.
 
-A large model in FP16 or BF16 can require far more memory than consumer hardware can provide comfortably. A 70B model stored in 16-bit precision already pushes far beyond what most local setups can load easily, and that estimate only covers the static weights. In practice, inference also needs room for activations, temporary buffers, and the KV cache.
+A large model in FP16 or BF16 can require far more memory than consumer hardware can provide comfortably. A 70B model stored in 16-bit precision already pushes far beyond what most local setups can load easily, and that estimate only covers the static weights. In practice, inference also needs room for activations, temporary buffers, and the KV cache ([Jin et al., 2024](https://arxiv.org/abs/2402.16775), [Mekala et al., 2025](https://arxiv.org/abs/2505.20276)).
 
-That is why quantization is not a niche optimization. Without some form of compression, many useful models remain locked behind expensive GPUs, server-grade deployments, or aggressive offloading strategies. Quantization is the technique that turns this from a hard hardware constraint into a controllable accuracy-versus-efficiency trade-off.
+That is why quantization is not a niche optimization. Without some form of compression, many useful models remain locked behind expensive GPUs, server-grade deployments, or aggressive offloading strategies. Quantization is the technique that turns this from a hard hardware constraint into a controllable accuracy-versus-efficiency trade-off ([Jin et al., 2024](https://arxiv.org/abs/2402.16775), [Lee et al., 2024](https://arxiv.org/abs/2409.11055)).
 
 ![[quantization_memory_wall.png]]
 
@@ -19,9 +22,11 @@ At its core, quantization means replacing a rich numerical vocabulary with a sma
 
 That gives us two immediate benefits. First, the model needs less memory because each weight uses fewer bits. Second, the hardware has less data to move around, which often improves practical inference speed. But those gains come from a real sacrifice: values that used to be distinct may now collapse into the same low-bit representation.
 
-### 2.2 The quantization formula
+TODO: Add an explanation to understand the image below 
+![[Blog-research/manim-quantization/media/images/manim_render_7461_16389/Scene1PrecisionLoss.png]]
+### 2.1 The quantization formula
 
-The quantization pipeline can be understood as a sequence of simple operations: scale a value, shift it into a discrete grid, round it, clip it to the allowed range, and then reconstruct it approximately during inference.
+The quantization pipeline can be understood as a sequence of simple operations: scale a value, shift it into a discrete grid, round it, clip it to the allowed range, and then reconstruct it approximately during inference ([Jacob et al., 2018](https://arxiv.org/abs/1712.05877)).
 
 The blue `W` is the original high-precision value. The green `Δ` controls the size of each quantization step, which means it controls the resolution of the grid itself. The amber `Z` shifts that grid so zero can be represented correctly when an asymmetric mapping is needed. The red `Round + Clip` stage then forces the value into the discrete integer range that the target bit-width allows, producing the violet `W_q`.
 
@@ -30,9 +35,9 @@ At inference time, the model does not recover the original value exactly. It rec
 ![[quantization_formula.png]]
 
 
-**Lower precision** does not randomly damage the model. It reduces the number of distinct values the model can represent, which increases approximation error and makes nearby values harder to distinguish.
+Lower precision does not randomly damage the model. It reduces the number of distinct values the model can represent, which increases approximation error and makes nearby values harder to distinguish.
 
-The important point is that the loss is structured. If the quantization grid is coarse, then small differences in weights disappear first. That means the model keeps the rough shape of its parameters, but loses fine-grained numerical detail. When this happens repeatedly across many tensors and layers, the accumulated error becomes the central problem every quantization method is trying to manage.
+The important point is that the loss is structured. If the quantization grid is coarse, then small differences in weights disappear first. That means the model keeps the rough shape of its parameters, but loses fine-grained numerical detail. When this happens repeatedly across many tensors and layers, the accumulated error becomes the central problem every quantization method is trying to manage ([Gong et al., 2024](https://arxiv.org/abs/2403.06408)).
 
 The next question is why that error becomes especially dangerous in large language models rather than merely mildly annoying.
 
@@ -48,22 +53,22 @@ The main failure mode is not rounding by itself but what rounding does when a te
 
 Once that happens, the ordinary values in the center of the distribution lose useful resolution. Instead of being mapped to many distinct levels, they collapse into a much smaller number of buckets. In effect, the outlier forces the entire tensor to pay for its range. This is why the green `Δ` in the formula matters so much: when `Δ` becomes too large, the grid becomes too coarse for the bulk of the data.
 
-The same idea extends beyond static weights. Large models can also develop massive activations, including token-specific spikes that behave like attention sinks. These are not harmless edge cases. They create exactly the kind of disproportionate scale problem that naive quantization handles badly.
+The same idea extends beyond static weights. Large models can also develop massive activations, including token-specific spikes that behave like attention sinks. These are not harmless edge cases. They create exactly the kind of disproportionate scale problem that naive quantization handles badly ([Dettmers et al., 2022](https://arxiv.org/abs/2208.07339), [Xiao et al., 2023](https://arxiv.org/abs/2211.10438), [Lee et al., 2023](https://arxiv.org/abs/2306.02272)).
 
-As models grow, these pathologies become more structural. Large transformers develop outlier channels, token-level activation spikes, and behaviors that make naive quantization much less reliable. The problem is therefore not just “more parameters means more rounding error.” The problem is that larger models develop numerical geometry that is harder to compress with one crude global rule.
+As models grow, these pathologies become more structural. Large transformers develop outlier channels, token-level activation spikes, and behaviors that make naive quantization much less reliable. The problem is therefore not just “more parameters means more rounding error.” The problem is that larger models develop numerical geometry that is harder to compress with one crude global rule ([Dettmers et al., 2022](https://arxiv.org/abs/2208.07339), [Gong et al., 2024](https://arxiv.org/abs/2403.06408)).
 
 Once naive quantization is understood as a failure of scale management and error control, modern quantization methods stop looking like arbitrary acronyms and start looking like targeted responses.
 ## 4. How Quantization Is Actually Applied Today
 
 ### 4.1 Post-Training Quantization vs Quantization-Aware Training
 
-Modern quantization usually begins with either post-training quantization or quantization-aware training. Post-training quantization adapts a model after training has finished. It is cheap, practical, and therefore dominant in open-weight inference workflows. Quantization-aware training is more expensive because it exposes the model to quantization during training or fine-tuning, but in exchange it can preserve quality better when the target precision becomes very low.
+Modern quantization usually begins with either post-training quantization or quantization-aware training. Post-training quantization adapts a model after training has finished. It is cheap, practical, and therefore dominant in open-weight inference workflows. Quantization-aware training is more expensive because it exposes the model to quantization during training or fine-tuning, but in exchange it can preserve quality better when the target precision becomes very low ([Jacob et al., 2018](https://arxiv.org/abs/1712.05877), [Liu et al., 2023](https://arxiv.org/abs/2305.17888), [Chen et al., 2024](https://arxiv.org/abs/2407.11062)).
 
 This first split matters because it tells us what kind of problem we are solving. PTQ asks: how much compression can we get from an existing model without retraining it? QAT asks: can the model learn to live inside a quantized regime from the start?
 
 ### 4.2 What modern methods try to preserve
 
-Different methods try to preserve different things because not all quantization error is equally harmful. Some methods try to protect the weights or channels that matter most for activations. Others focus on local scaling so that one bad region of a tensor does not ruin the rest. Others are optimized around throughput, flexible bitrate targets, or making a particular hardware stack easier to exploit efficiently.
+Different methods try to preserve different things because not all quantization error is equally harmful. Some methods try to protect the weights or channels that matter most for activations. Others focus on local scaling so that one bad region of a tensor does not ruin the rest. Others are optimized around throughput, flexible bitrate targets, or making a particular hardware stack easier to exploit efficiently ([Lin et al., 2023](https://arxiv.org/abs/2306.00978), [Frantar et al., 2022](https://arxiv.org/abs/2210.17323), [Xiao et al., 2023](https://arxiv.org/abs/2211.10438)).
 
 That is why modern quantization methods are best understood as error-control strategies. They are all trying to answer the same question: which information is too important to compress naively, and what is the cheapest way to protect it?
 
@@ -79,13 +84,13 @@ Today’s ecosystem is not a random list of acronyms. Formats and methods such a
 | EXL2 | mixed bitrate quantization tuned to fit VRAM targets | flexible memory / speed trade-off | multi-GPU or VRAM-constrained ExLlama setups |
 | QAT | train or fine-tune with quantization in the loop | best robustness at very low precision | cases where retraining cost is acceptable |
 
-The point of this table is not to memorize brands. It is to notice that every row protects something slightly different: portability, salient weights, second-order error control, bitrate flexibility, or robustness under retraining.
+The point of this table is not to memorize brands. It is to notice that every row protects something slightly different: portability, salient weights, second-order error control, bitrate flexibility, or robustness under retraining. The table compresses ideas drawn from the [GGUF specification](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md), [AWQ](https://arxiv.org/abs/2306.00978), [GPTQ](https://arxiv.org/abs/2210.17323), [ExLlamaV2 / EXL2](https://github.com/turboderp-org/exllamav2), and recent LLM-focused QAT work such as [LLM-QAT](https://arxiv.org/abs/2305.17888) and [EfficientQAT](https://arxiv.org/abs/2407.11062).
 
 ### 4.4 When GGUF, AWQ, GPTQ, EXL2, or QAT make sense
 
-Once the trade-offs are clear, the method landscape becomes easier to reason about. GGUF is the natural choice when you want broad local portability and a format that works well across CPUs and Apple Silicon. AWQ and GPTQ are more natural when GPU inference is the priority, but they optimize different sides of the trade-off: AWQ tends to be favored when preserving quality matters more, while GPTQ is often chosen when throughput is central.
+Once the trade-offs are clear, the method landscape becomes easier to reason about. GGUF is the natural choice when you want broad local portability and a format that works well across CPUs and Apple Silicon ([GGUF spec](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md)). AWQ and GPTQ are more natural when GPU inference is the priority, but they optimize different sides of the trade-off: AWQ tends to be favored when preserving quality matters more, while GPTQ is often chosen when throughput is central ([Lin et al., 2023](https://arxiv.org/abs/2306.00978), [Frantar et al., 2022](https://arxiv.org/abs/2210.17323)).
 
-EXL2 makes sense when memory fitting is itself the main optimization problem and you want finer bitrate control. QAT belongs to a different category: it is not the easiest option, but it becomes attractive when aggressive low-bit deployment matters enough to justify retraining or fine-tuning the model to survive quantization noise.
+EXL2 makes sense when memory fitting is itself the main optimization problem and you want finer bitrate control ([ExLlamaV2](https://github.com/turboderp-org/exllamav2)). QAT belongs to a different category: it is not the easiest option, but it becomes attractive when aggressive low-bit deployment matters enough to justify retraining or fine-tuning the model to survive quantization noise ([Liu et al., 2023](https://arxiv.org/abs/2305.17888), [Chen et al., 2024](https://arxiv.org/abs/2407.11062)).
 
 But choosing a method is only half the story. The harder question is what kinds of capability and behavior become less stable once that compression has been applied.
 
@@ -93,35 +98,31 @@ But choosing a method is only half the story. The harder question is what kinds 
 
 ### 5.1 Capability degradation: reasoning, context, and multimodal reliability
 
-Reducing precision can degrade reasoning quality, long-context behavior, and multimodal reliability. These degradations are often uneven: some tasks remain stable while others deteriorate sharply. A model may preserve fluency and still lose reliability on multi-step mathematics, long-chain inference, or tasks that depend on small internal distinctions being preserved across many layers.
+Reducing precision can degrade reasoning quality and long-context behavior, and the same low-bit robustness problem also matters for multimodal systems. These degradations are often uneven: some tasks remain stable while others deteriorate sharply. A model may preserve fluency and still lose reliability on multi-step mathematics, long-chain inference, or tasks that depend on small internal distinctions being preserved across many layers ([Li et al., 2025](https://arxiv.org/abs/2501.03035), [Mekala et al., 2025](https://arxiv.org/abs/2505.20276), [Chen et al., 2024](https://arxiv.org/abs/2407.11062)).
 
-This unevenness is one reason quantization can be misleading if it is evaluated only through a small benchmark slice. A model that looks almost unchanged on short prompts may still lose quality on longer contexts, harder reasoning tasks, or multimodal inputs where the error compounds more severely.
+This unevenness is one reason quantization can be misleading if it is evaluated only through a small benchmark slice. A model that looks almost unchanged on short prompts may still lose quality on longer contexts, harder reasoning tasks, or multimodal inputs where the error compounds more severely ([Jin et al., 2024](https://arxiv.org/abs/2402.16775), [Lee et al., 2024](https://arxiv.org/abs/2409.11055), [Mekala et al., 2025](https://arxiv.org/abs/2505.20276)).
 
 ### 5.2 Silent failures in agents and real-world behavior
 
-Quantized models can also fail in quieter ways. Tool use, multi-step planning, and agentic workflows may become more brittle even when the model still appears fluent at the surface level. That is a dangerous profile because it produces models that sound competent while becoming less reliable at the exact moments where external systems, tools, or delayed consequences matter.
+Quantized models can also fail in quieter ways. Tool use, multi-step planning, and agentic workflows may become more brittle even when the model still appears fluent at the surface level. That is a dangerous profile because it produces models that sound competent while becoming less reliable at the exact moments where external systems, tools, or delayed consequences matter ([Lee et al., 2024](https://arxiv.org/abs/2409.11055), [Kharinaev et al., 2025](https://arxiv.org/abs/2502.15799)).
 
 In practice, this means quantization should be evaluated not only as a text generation problem, but as a systems behavior problem. If a model is part of an agent loop, a retrieval stack, or a tool-calling workflow, a small loss in token-level reliability can become a much larger operational failure.
 
 ### 5.3 Security, bias, and alignment distortions
 
-Compression can also alter safety and behavioral properties. Quantization does not automatically make a model unsafe or biased, but it can distort the mechanisms that support alignment, guardrails, and stable behavior. If some behaviors are already numerically fragile, low-bit compression can move them enough to change refusal behavior, toxicity tendencies, or robustness against adversarial prompting.
+Compression can also alter safety and behavioral properties. Quantization does not automatically make a model unsafe or biased, but it can distort the mechanisms that support alignment, guardrails, and stable behavior. If some behaviors are already numerically fragile, low-bit compression can move them enough to change refusal behavior, toxicity tendencies, or robustness against adversarial prompting ([Jin et al., 2024](https://arxiv.org/abs/2402.16775), [Kharinaev et al., 2025](https://arxiv.org/abs/2502.15799)).
 
 The correct stance here is neither denial nor panic. Quantization should be treated as a behavior-changing intervention whose effects need to be measured directly. It is not enough to ask whether the model is smaller and faster; we also need to ask which properties became less stable when resolution was removed.
 
 ## 6. Conclusion: Quantization as a Core Design Layer
 
-### 6.1 What quantization really gives us
-
 Quantization makes large models cheaper to store, easier to move, and more practical to deploy. It is one of the main reasons advanced models can run outside specialized infrastructure. In that sense, quantization is one of the key technologies behind the broader accessibility of modern LLMs: without it, many models would remain trapped behind hardware budgets that only a small number of users or organizations could absorb.
-
-### 6.2 What it can quietly take away
 
 The same compression that makes deployment practical can also remove useful resolution from the model’s internal computation. That loss may show up as degraded reasoning, silent instability, or shifted behavior. The important lesson is that quantization is never “free.” Even when it is clearly worth doing, it changes the numerical regime in which the model thinks.
 
-### 6.3 Where research is going next
+### 6.1 Where research is going next
 
-Current research is pushing toward smarter low-bit methods, better protection of sensitive activations, hardware-aware formats, and finer evaluation of what compression changes beyond benchmark accuracy. The broad direction is clear: future work is not only about fitting models into fewer bits, but about learning which parts of a model can be compressed aggressively and which parts must stay numerically protected.
+Current research is pushing toward smarter low-bit methods, better protection of sensitive activations, hardware-aware formats, and finer evaluation of what compression changes beyond benchmark accuracy. The broad direction is clear: future work is not only about fitting models into fewer bits, but about learning which parts of a model can be compressed aggressively and which parts must stay numerically protected ([Lin et al., 2023](https://arxiv.org/abs/2306.00978), [Chen et al., 2024](https://arxiv.org/abs/2407.11062), [Kharinaev et al., 2025](https://arxiv.org/abs/2502.15799)).
 
 That is why quantization should be understood as a core design layer rather than a final storage trick. It sits between model quality, deployment cost, and behavioral reliability, and the best modern methods are all attempts to balance those three pressures more intelligently.
 
@@ -140,14 +141,17 @@ Primary sources and official implementation references used for this explainer.
 - Frantar et al. (2022). [GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers](https://arxiv.org/abs/2210.17323). Primary source for second-order post-training quantization in GPT-style models.
 - Xiao et al. (2023). [SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models](https://arxiv.org/abs/2211.10438). Key reference for handling activation outliers in weight-and-activation quantization.
 - Lin et al. (2023). [AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration](https://arxiv.org/abs/2306.00978). Primary source for protecting activation-salient weights in low-bit LLM quantization.
+- Lee et al. (2023). [OWQ: Outlier-Aware Weight Quantization for Efficient Fine-Tuning and Inference of Large Language Models](https://arxiv.org/abs/2306.02272). Useful reference for outlier-sensitive low-bit quantization and fine-tuning.
 - Dettmers et al. (2023). [QLoRA: Efficient Finetuning of Quantized LLMs](https://arxiv.org/abs/2305.14314). Important reference for 4-bit quantized fine-tuning and NF4-based training workflows.
 - ggml / llama.cpp. [GGUF format specification](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md). Official specification for the GGUF file format discussed in the deployment-oriented methods section.
 - turboderp-org. [ExLlamaV2 README and EXL2 quantization notes](https://github.com/turboderp-org/exllamav2). Primary implementation reference for EXL2's mixed-bitrate local GPU workflow.
+- Liu et al. (2023). [LLM-QAT: Data-Free Quantization Aware Training for Large Language Models](https://arxiv.org/abs/2305.17888). Early LLM-specific QAT reference, especially relevant below 8-bit precision.
+- Chen et al. (2024). [EfficientQAT: Efficient Quantization-Aware Training for Large Language Models](https://arxiv.org/abs/2407.11062). More recent LLM-QAT work focused on practical low-bit training efficiency.
 
 ### Evaluation, trade-offs, and failure modes
 
 - Jin et al. (2024). [A Comprehensive Evaluation of Quantization Strategies for Large Language Models](https://arxiv.org/abs/2402.16775). Broad evaluation framework covering capability, alignment, and efficiency.
-- Lee et al. (2024/2025). [Exploring the Trade-Offs: Quantization Methods, Task Difficulty, and Model Size in Large Language Models From Edge to Giant](https://arxiv.org/abs/2409.11055). Large-scale comparison across models, quantizers, and benchmark families.
+- Lee et al. (2024). [Exploring the Trade-Offs: Quantization Methods, Task Difficulty, and Model Size in Large Language Models From Edge to Giant](https://arxiv.org/abs/2409.11055). Large-scale comparison across models, quantizers, and benchmark families.
 - Li et al. (2025). [Quantization Meets Reasoning: Exploring LLM Low-Bit Quantization Degradation for Mathematical Reasoning](https://arxiv.org/abs/2501.03035). Direct evidence for reasoning degradation under aggressive low-bit quantization.
 - Mekala et al. (2025). [Does quantization affect models' performance on long-context tasks?](https://arxiv.org/abs/2505.20276). Primary reference for long-context degradation under quantization.
 - Kharinaev et al. (2025). [Investigating the Impact of Quantization Methods on the Safety and Reliability of Large Language Models](https://arxiv.org/abs/2502.15799). Reference for the safety / reliability section and why behavior changes should be measured directly.
