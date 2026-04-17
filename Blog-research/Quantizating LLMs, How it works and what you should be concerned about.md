@@ -1,56 +1,42 @@
 Quantization makes large language models practical to run by compressing their numerical representation, but every bit removed creates trade-offs in accuracy, robustness, and behavior.
 
-## 1. Introduction: Why Quantization Exists
-
-### 1.1 The memory wall
-
 Large language models do not only scale into a compute problem; they scale into a memory problem. Every parameter must be stored somewhere, moved through memory, and read fast enough for inference to remain practical. As models grow from billions to tens or hundreds of billions of parameters, that movement of weights becomes one of the main bottlenecks.
 
 This is what people often call the memory wall: compute hardware may keep improving, but memory capacity and bandwidth do not scale at the same pace. A model can therefore become difficult to run not because the arithmetic is impossible, but because its weights are too expensive to hold and move efficiently.
-
-### 1.2 Why scaling LLMs makes this unavoidable
 
 A large model in FP16 or BF16 can require far more memory than consumer hardware can provide comfortably. A 70B model stored in 16-bit precision already pushes far beyond what most local setups can load easily, and that estimate only covers the static weights. In practice, inference also needs room for activations, temporary buffers, and the KV cache.
 
 That is why quantization is not a niche optimization. Without some form of compression, many useful models remain locked behind expensive GPUs, server-grade deployments, or aggressive offloading strategies. Quantization is the technique that turns this from a hard hardware constraint into a controllable accuracy-versus-efficiency trade-off.
 
-### 1.3 What this article will explain
+![[quantization_memory_wall.png]]
 
 This article follows that trade-off from start to finish. First, it explains what quantization is as a mathematical operation. Then it shows why the naive version of that idea breaks large transformers. After that, it maps the main modern approaches that try to control the resulting error, and finally it looks at the capabilities and behaviors that can quietly degrade when precision goes down.
 
-![[quantization_memory_wall.png]]
 
 ## 2. The Basic Intuition Behind Quantization
-
-### 2.1 From high precision to low-bit representation
 
 At its core, quantization means replacing a rich numerical vocabulary with a smaller one. Instead of letting a weight take many finely separated floating-point values, we force it to live on a smaller discrete grid. The more aggressively we reduce the number of available levels, the smaller the representation becomes.
 
 That gives us two immediate benefits. First, the model needs less memory because each weight uses fewer bits. Second, the hardware has less data to move around, which often improves practical inference speed. But those gains come from a real sacrifice: values that used to be distinct may now collapse into the same low-bit representation.
 
-![[quantization_intuition.png]]
-
-### 2.2 The quantization formula, reconstruction, and error
+### 2.2 The quantization formula
 
 The quantization pipeline can be understood as a sequence of simple operations: scale a value, shift it into a discrete grid, round it, clip it to the allowed range, and then reconstruct it approximately during inference.
 
 The blue `W` is the original high-precision value. The green `Δ` controls the size of each quantization step, which means it controls the resolution of the grid itself. The amber `Z` shifts that grid so zero can be represented correctly when an asymmetric mapping is needed. The red `Round + Clip` stage then forces the value into the discrete integer range that the target bit-width allows, producing the violet `W_q`.
 
-At inference time, the model does not recover the original value exactly. It reconstructs an approximation by reversing the mapping with the same scale and offset. That is why dequantization is not a perfect inverse: once several nearby real values have been collapsed into one discrete level, the lost detail cannot be recovered.
+At inference time, the model does not recover the original value exactly. It reconstructs an **approximation** by reversing the mapping with the same scale and offset. That is why dequantization is not a perfect inverse: once several nearby real values have been collapsed into one discrete level, the lost detail cannot be recovered.
 
 ![[quantization_formula.png]]
 
-### 2.3 What is actually lost when precision goes down
 
-Lower precision does not randomly damage the model. It reduces the number of distinct values the model can represent, which increases approximation error and makes nearby values harder to distinguish.
+**Lower precision** does not randomly damage the model. It reduces the number of distinct values the model can represent, which increases approximation error and makes nearby values harder to distinguish.
 
 The important point is that the loss is structured. If the quantization grid is coarse, then small differences in weights disappear first. That means the model keeps the rough shape of its parameters, but loses fine-grained numerical detail. When this happens repeatedly across many tensors and layers, the accumulated error becomes the central problem every quantization method is trying to manage.
 
 The next question is why that error becomes especially dangerous in large language models rather than merely mildly annoying.
 
 ## 3. Why Naive Quantization Fails in LLMs
-
-### 3.1 Why simple rounding breaks large models
 
 If model weights are just numbers, it is tempting to think that quantization is only a matter of rounding them more aggressively. In a small toy example, that intuition seems reasonable: shrink the representation, accept some error, and move on. But large transformers are not just large tables of interchangeable numbers. Their performance depends on very uneven numerical structure spread across layers, channels, and tokens.
 
@@ -64,14 +50,9 @@ Once that happens, the ordinary values in the center of the distribution lose us
 
 The same idea extends beyond static weights. Large models can also develop massive activations, including token-specific spikes that behave like attention sinks. These are not harmless edge cases. They create exactly the kind of disproportionate scale problem that naive quantization handles badly.
 
-### 3.3 Why this problem gets worse at scale
-
 As models grow, these pathologies become more structural. Large transformers develop outlier channels, token-level activation spikes, and behaviors that make naive quantization much less reliable. The problem is therefore not just “more parameters means more rounding error.” The problem is that larger models develop numerical geometry that is harder to compress with one crude global rule.
 
 Once naive quantization is understood as a failure of scale management and error control, modern quantization methods stop looking like arbitrary acronyms and start looking like targeted responses.
-
-![[quantization_outlier_distortion.png]]
-
 ## 4. How Quantization Is Actually Applied Today
 
 ### 4.1 Post-Training Quantization vs Quantization-Aware Training
@@ -143,3 +124,30 @@ The same compression that makes deployment practical can also remove useful reso
 Current research is pushing toward smarter low-bit methods, better protection of sensitive activations, hardware-aware formats, and finer evaluation of what compression changes beyond benchmark accuracy. The broad direction is clear: future work is not only about fitting models into fewer bits, but about learning which parts of a model can be compressed aggressively and which parts must stay numerically protected.
 
 That is why quantization should be understood as a core design layer rather than a final storage trick. It sits between model quality, deployment cost, and behavioral reliability, and the best modern methods are all attempts to balance those three pressures more intelligently.
+
+## Bibliography
+
+Primary sources and official implementation references used for this explainer.
+
+### Foundations
+
+- Jacob et al. (2018). [Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference](https://arxiv.org/abs/1712.05877). Foundational reference for scale / zero-point quantization and quantization-aware training.
+- Dettmers et al. (2022). [LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale](https://arxiv.org/abs/2208.07339). Core reference for transformer outliers and why naive low-bit compression fails differently at scale.
+- Gong et al. (2024). [What Makes Quantization for Large Language Models Hard? An Empirical Study from the Lens of Perturbation](https://arxiv.org/abs/2403.06408). Useful reference for understanding quantization error as structured perturbation rather than generic noise.
+
+### Methods and formats
+
+- Frantar et al. (2022). [GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers](https://arxiv.org/abs/2210.17323). Primary source for second-order post-training quantization in GPT-style models.
+- Xiao et al. (2023). [SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models](https://arxiv.org/abs/2211.10438). Key reference for handling activation outliers in weight-and-activation quantization.
+- Lin et al. (2023). [AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration](https://arxiv.org/abs/2306.00978). Primary source for protecting activation-salient weights in low-bit LLM quantization.
+- Dettmers et al. (2023). [QLoRA: Efficient Finetuning of Quantized LLMs](https://arxiv.org/abs/2305.14314). Important reference for 4-bit quantized fine-tuning and NF4-based training workflows.
+- ggml / llama.cpp. [GGUF format specification](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md). Official specification for the GGUF file format discussed in the deployment-oriented methods section.
+- turboderp-org. [ExLlamaV2 README and EXL2 quantization notes](https://github.com/turboderp-org/exllamav2). Primary implementation reference for EXL2's mixed-bitrate local GPU workflow.
+
+### Evaluation, trade-offs, and failure modes
+
+- Jin et al. (2024). [A Comprehensive Evaluation of Quantization Strategies for Large Language Models](https://arxiv.org/abs/2402.16775). Broad evaluation framework covering capability, alignment, and efficiency.
+- Lee et al. (2024/2025). [Exploring the Trade-Offs: Quantization Methods, Task Difficulty, and Model Size in Large Language Models From Edge to Giant](https://arxiv.org/abs/2409.11055). Large-scale comparison across models, quantizers, and benchmark families.
+- Li et al. (2025). [Quantization Meets Reasoning: Exploring LLM Low-Bit Quantization Degradation for Mathematical Reasoning](https://arxiv.org/abs/2501.03035). Direct evidence for reasoning degradation under aggressive low-bit quantization.
+- Mekala et al. (2025). [Does quantization affect models' performance on long-context tasks?](https://arxiv.org/abs/2505.20276). Primary reference for long-context degradation under quantization.
+- Kharinaev et al. (2025). [Investigating the Impact of Quantization Methods on the Safety and Reliability of Large Language Models](https://arxiv.org/abs/2502.15799). Reference for the safety / reliability section and why behavior changes should be measured directly.
