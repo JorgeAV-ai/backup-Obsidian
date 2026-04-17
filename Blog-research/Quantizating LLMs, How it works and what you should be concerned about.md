@@ -74,19 +74,35 @@ Once naive quantization is understood as a failure of scale management and error
 
 ### 4.1 Post-Training Quantization vs Quantization-Aware Training
 
-Modern quantization usually begins with either post-training quantization, which adapts an already trained model, or quantization-aware training, which exposes the model to quantization during training or fine-tuning.
+Modern quantization usually begins with either post-training quantization or quantization-aware training. Post-training quantization adapts a model after training has finished. It is cheap, practical, and therefore dominant in open-weight inference workflows. Quantization-aware training is more expensive because it exposes the model to quantization during training or fine-tuning, but in exchange it can preserve quality better when the target precision becomes very low.
+
+This first split matters because it tells us what kind of problem we are solving. PTQ asks: how much compression can we get from an existing model without retraining it? QAT asks: can the model learn to live inside a quantized regime from the start?
 
 ### 4.2 What modern methods try to preserve
 
-Different methods try to preserve different things: salient weights, local scaling behavior, throughput, bitrate flexibility, or quality under very low precision.
+Different methods try to preserve different things because not all quantization error is equally harmful. Some methods try to protect the weights or channels that matter most for activations. Others focus on local scaling so that one bad region of a tensor does not ruin the rest. Others are optimized around throughput, flexible bitrate targets, or making a particular hardware stack easier to exploit efficiently.
+
+That is why modern quantization methods are best understood as error-control strategies. They are all trying to answer the same question: which information is too important to compress naively, and what is the cheapest way to protect it?
 
 ### 4.3 Main methods and formats in practice
 
-Today’s ecosystem is not a random list of acronyms. Formats and methods such as GGUF, AWQ, GPTQ, EXL2, and QAT exist because different deployment settings and error profiles demand different compromises.
+Today’s ecosystem is not a random list of acronyms. Formats and methods such as GGUF, AWQ, GPTQ, EXL2, and QAT exist because different error profiles and runtime goals demand different compromises.
+
+| Method / Format | Main idea | Strength | Best fit |
+|---|---|---|---|
+| GGUF | block-wise low-bit format tuned for broad local inference | portability and practical defaults | CPUs, Apple Silicon, heterogeneous local setups |
+| AWQ | protect activation-salient weights during quantization | strong quality retention at low bit-width | GPU inference where quality matters |
+| GPTQ | second-order post-training weight quantization | fast inference with good compression | throughput-oriented GPU serving |
+| EXL2 | mixed bitrate quantization tuned to fit VRAM targets | flexible memory / speed trade-off | multi-GPU or VRAM-constrained ExLlama setups |
+| QAT | train or fine-tune with quantization in the loop | best robustness at very low precision | cases where retraining cost is acceptable |
+
+The point of this table is not to memorize brands. It is to notice that every row protects something slightly different: portability, salient weights, second-order error control, bitrate flexibility, or robustness under retraining.
 
 ### 4.4 When GGUF, AWQ, GPTQ, EXL2, or QAT make sense
 
-Once the trade-offs are clear, the method landscape becomes easier to reason about. The right choice depends on whether the priority is local portability, GPU throughput, accuracy retention, or robustness at very low bit-widths.
+Once the trade-offs are clear, the method landscape becomes easier to reason about. GGUF is the natural choice when you want broad local portability and a format that works well across CPUs and Apple Silicon. AWQ and GPTQ are more natural when GPU inference is the priority, but they optimize different sides of the trade-off: AWQ tends to be favored when preserving quality matters more, while GPTQ is often chosen when throughput is central.
+
+EXL2 makes sense when memory fitting is itself the main optimization problem and you want finer bitrate control. QAT belongs to a different category: it is not the easiest option, but it becomes attractive when aggressive low-bit deployment matters enough to justify retraining or fine-tuning the model to survive quantization noise.
 
 ## 5. The Hidden Costs of Quantization
 
