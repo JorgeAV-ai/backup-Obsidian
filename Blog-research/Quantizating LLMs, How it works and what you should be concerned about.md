@@ -108,26 +108,34 @@ EXL2 makes sense when memory fitting is itself the main optimization problem and
 
 ### 5.1 Capability degradation: reasoning, context, and multimodal reliability
 
-Reducing precision can degrade reasoning quality, long-context behavior, and multimodal reliability. These degradations are often uneven: some tasks remain stable while others deteriorate sharply.
+Reducing precision can degrade reasoning quality, long-context behavior, and multimodal reliability. These degradations are often uneven: some tasks remain stable while others deteriorate sharply. A model may preserve fluency and still lose reliability on multi-step mathematics, long-chain inference, or tasks that depend on small internal distinctions being preserved across many layers.
+
+This unevenness is one reason quantization can be misleading if it is evaluated only through a small benchmark slice. A model that looks almost unchanged on short prompts may still lose quality on longer contexts, harder reasoning tasks, or multimodal inputs where the error compounds more severely.
 
 ### 5.2 Silent failures in agents and real-world behavior
 
-Quantized models can also fail in quieter ways. Tool use, multi-step planning, and agentic workflows may become more brittle even when the model still appears fluent at the surface level.
+Quantized models can also fail in quieter ways. Tool use, multi-step planning, and agentic workflows may become more brittle even when the model still appears fluent at the surface level. That is a dangerous profile because it produces models that sound competent while becoming less reliable at the exact moments where external systems, tools, or delayed consequences matter.
+
+In practice, this means quantization should be evaluated not only as a text generation problem, but as a systems behavior problem. If a model is part of an agent loop, a retrieval stack, or a tool-calling workflow, a small loss in token-level reliability can become a much larger operational failure.
 
 ### 5.3 Security, bias, and alignment distortions
 
-Compression can also alter safety and behavioral properties. Quantization does not automatically make a model unsafe or biased, but it can distort the mechanisms that support alignment, guardrails, and stable behavior.
+Compression can also alter safety and behavioral properties. Quantization does not automatically make a model unsafe or biased, but it can distort the mechanisms that support alignment, guardrails, and stable behavior. If some behaviors are already numerically fragile, low-bit compression can move them enough to change refusal behavior, toxicity tendencies, or robustness against adversarial prompting.
+
+The correct stance here is neither denial nor panic. Quantization should be treated as a behavior-changing intervention whose effects need to be measured directly. It is not enough to ask whether the model is smaller and faster; we also need to ask which properties became less stable when resolution was removed.
 
 ## 6. Conclusion: Quantization as a Core Design Layer
 
 ### 6.1 What quantization really gives us
 
-Quantization makes large models cheaper to store, easier to move, and more practical to deploy. It is one of the main reasons advanced models can run outside specialized infrastructure.
+Quantization makes large models cheaper to store, easier to move, and more practical to deploy. It is one of the main reasons advanced models can run outside specialized infrastructure. In that sense, quantization is one of the key technologies behind the broader accessibility of modern LLMs: without it, many models would remain trapped behind hardware budgets that only a small number of users or organizations could absorb.
 
 ### 6.2 What it can quietly take away
 
-The same compression that makes deployment practical can also remove useful resolution from the model’s internal computation. That loss may show up as degraded reasoning, silent instability, or shifted behavior.
+The same compression that makes deployment practical can also remove useful resolution from the model’s internal computation. That loss may show up as degraded reasoning, silent instability, or shifted behavior. The important lesson is that quantization is never “free.” Even when it is clearly worth doing, it changes the numerical regime in which the model thinks.
 
 ### 6.3 Where research is going next
 
-Current research is pushing toward smarter low-bit methods, better protection of sensitive activations, hardware-aware formats, and finer evaluation of what compression changes beyond benchmark accuracy.
+Current research is pushing toward smarter low-bit methods, better protection of sensitive activations, hardware-aware formats, and finer evaluation of what compression changes beyond benchmark accuracy. The broad direction is clear: future work is not only about fitting models into fewer bits, but about learning which parts of a model can be compressed aggressively and which parts must stay numerically protected.
+
+That is why quantization should be understood as a core design layer rather than a final storage trick. It sits between model quality, deployment cost, and behavioral reliability, and the best modern methods are all attempts to balance those three pressures more intelligently.
