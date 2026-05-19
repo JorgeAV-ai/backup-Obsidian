@@ -47,7 +47,7 @@ To stabilize this training and scale up to the final DeepSeek-R1 model, the team
 This creates an objective that heavily penalizes bad answers and rewards good ones relative to their peers, while keeping updates in check to avoid catastrophic forgetting. This efficiency allowed DeepSeek to compete with massive proprietary models using only a fraction of the usual computing power.
 
 
-![[ChatGPT Image May 18, 2026, 12_13_54 AM.png|637]]
+![[grpo_comparison_english.png|637]]
 
 
 GRPO's success largely comes down to using Reinforcement Learning from Verifiable Rewards (RLVR). Instead of relying on human judges or AI reward models (which can be easily tricked or "hacked"), DeepSeek used strict, rule-based rewards. The two main rewards are for accuracy and format. The accuracy reward checks if the final answer is perfectly correct (like passing a unit test for code). The format reward forces the model to put its internal thinking process inside strict XML tags, ensuring the chain-of-thought is readable and structured.
