@@ -10,14 +10,14 @@ This report breaks down how reinforcement learning is applied in today's top mod
 
 Before the big shift in 2025, the standard way to align LLMs was heavily shaped by OpenAI's InstructGPT. This classic approach relied on Reinforcement Learning from Human Feedback (RLHF) and followed a strict three-step process. First, the model underwent Supervised Fine-Tuning (SFT) using examples written by human labelers. Second, a separate Reward Model (RM) was trained on datasets of human preferences to predict which answers humans liked best. Finally, the SFT model was optimized against this reward model using Proximal Policy Optimization (PPO), an algorithm that updates the policy while it is running.
 
-![[ChatGPT Image May 17, 2026, 11_39_58 PM.png|595]]
+![[rlhf_three_stage_pipeline.png|595]]
 
 While this worked well for basic tone adjustments and following simple instructions, classic RLHF had serious flaws. It suffered from the "alignment tax", a problem where optimizing a model to sound polite or safe actively harmed its underlying reasoning and academic skills. Also, PPO was notoriously complex and required massive amounts of memory, as several models (Actor, Critic, Reference, and Reward) had to run at the same time.
 
 
 In late 2023, Direct Preference Optimization (DPO) was introduced as the first major simplification. DPO proved mathematically that the separate reward modeling step could be skipped entirely, allowing the policy to be optimized directly from datasets of human preferences. However, pre-2025 DPO was strictly an "offline" method. Both PPO and DPO relied entirely on static, human-annotated data, which meant the models could never really surpass human reasoning capabilities. To break through this ceiling, the industry had to move toward verifiable rewards and the "online" methods we see today.
 
-![[824b02a8-ce67-473b-bbdc-68a72e7b1850.png|570]]
+![[dpo_vs_ppo_rlhf_comparison.png|570]]
 
 ## From Preference Alignment to Verifiable Rewards
 
@@ -33,7 +33,7 @@ This distinction matters because training-time RL and test-time compute are rela
 
 ## The Reasoning Revolution in Frontier Models (2025-2026)
 
-![[rl_frontier_comparison_table.png|700]]
+![[frontier_rl_model_comparison.png|700]]
 
 Recent research suggests that major leaps in solving complex math problems, generating code, and logical analysis do not come simply from making models bigger. They also depend on stronger post-training, better reward signals, and more inference-time computation. Different companies have tackled the same core challenge: giving rich and stable feedback to massive language models in unique ways.
 
@@ -47,7 +47,7 @@ To stabilize this training and scale up to the final DeepSeek-R1 model, the team
 This creates an objective that heavily penalizes bad answers and rewards good ones relative to their peers, while keeping updates in check to avoid catastrophic forgetting. This efficiency allowed DeepSeek to compete with massive proprietary models using only a fraction of the usual computing power.
 
 
-![[grpo_comparison_english.png|637]]
+![[grpo_reasoning_rl_comparison.png|637]]
 
 
 GRPO's success largely comes down to using Reinforcement Learning from Verifiable Rewards (RLVR). Instead of relying on human judges or AI reward models (which can be easily tricked or "hacked"), DeepSeek used strict, rule-based rewards. The two main rewards are for accuracy and format. The accuracy reward checks if the final answer is perfectly correct (like passing a unit test for code). The format reward forces the model to put its internal thinking process inside strict XML tags, ensuring the chain-of-thought is readable and structured.
@@ -55,13 +55,13 @@ GRPO's success largely comes down to using Reinforcement Learning from Verifiabl
 This method later evolved into GRPO-$\lambda$. Researchers noticed that strictly penalizing a model for writing long answers (to stop it from thinking endlessly) caused sudden drops in accuracy early in training. GRPO-$\lambda$ fixes this by dynamically adjusting the penalty. If the model is getting questions wrong, it temporarily stops caring about length so the model can freely search for the solution. This smart adjustment improved accuracy on tough benchmarks like AIME 2024 and GSM8K, while surprisingly cutting the average response length in half.
 
 
-![[ChatGPT Image May 18, 2026, 12_15_38 AM.png|676]]
+![[deepseek_r1_training_pipeline.png|676]]
 
 ### OpenAI: Dynamic Reasoning, Makora and Safety
 
 The OpenAI ecosystem, featuring the "o" series and later frontier reasoning models, has pushed reinforcement learning into domains where models need to reason for longer before answering. They use it not just for abstract thinking, but also for writing code for hardware accelerators and improving defense against cyberattacks. The core idea behind reasoning models relies on two-dimensional scaling laws: a model's accuracy can improve as more computing power is spent during RL training, _and_ as more time is given for reasoning during testing (test-time compute).
 
-![[ChatGPT Image May 19, 2026, 12_45_21 PM.png|608]]
+![[reasoning_scaling_train_test_compute.png|608]]
 
 This figure uses DeepSeek-R1-Zero scaling curves as a public proxy for the general train-time/test-time scaling idea. OpenAI has described similar qualitative behavior for reasoning models, but has not released equally detailed public intermediate scaling traces.
 
@@ -71,7 +71,7 @@ The reported results show why this paradigm became so influential. On math and s
 The LLM writes a proposed piece of code, which is sent to a backend system that compiles it, checks if it works, and measures how fast it runs. The faster it runs, the higher the reward. This closed the loop directly between real-world software performance and the model's learning. This technique allowed the model to write code that was twice as fast as standard compilers in the majority of tests.
 
 
-![[ChatGPT Image May 19, 2026, 12_50_56 PM.png|607]]
+![[makora_kernel_rl_evaluation_loop.png|607]]
 
 
 ### Meta Llama 4: Asynchronous Optimization and Lightweight DPO
@@ -89,7 +89,7 @@ Google DeepMind's ecosystem, specifically Gemini Deep Think and related research
 Aletheia doesn't rely on strict programming languages to prove math; it operates entirely in natural English. It uses a reinforcement loop with three parts: a Generator, a Verifier, and a Reviser. When given a hard theorem, the model writes out possible solutions. If the Verifier spots a small mistake, it doesn't just throw the whole answer away. Instead, it passes it to the Reviser to fix the logic. The answer is only scrapped if there is a massive, unfixable error. Aletheia can also use external search and scientific literature retrieval to validate claims and avoid making up fake citations.
 
 
-![[ChatGPT Image May 19, 2026, 01_30_46 PM.png]]
+![[aletheia_verifier_reviser_loop.png]]
 
 Aletheia's reported results suggest that verifier-reviser loops can push natural-language mathematical proof systems well beyond ordinary single-pass generation, especially on difficult proof benchmarks. Even more impressively, Aletheia has been described as capable of producing substantial mathematical research artifacts and inspecting machine learning algorithms. The important technical point is not just the score, but the loop: generate, verify, revise, and only then accept the proof.
 
@@ -101,7 +101,7 @@ This method, called Reinforcement Learning from AI Feedback (RLAIF), forces the 
 
 In late January 2026, Anthropic published a major update to this framework, releasing "Claude's New Constitution." Shifting from a simple rule-based approach to a more reason-based alignment document, it establishes a priority hierarchy around safety, ethics, compliance, and helpfulness. The constitution does not magically solve alignment by itself. Its role is to define the critique framework used to generate, filter, and rank responses during training and evaluation. By making the document public, Anthropic also made its alignment philosophy easier to inspect and debate.
 
-![[ChatGPT Image May 19, 2026, 01_21_22 PM.png|615]]
+![[anthropic_rlaif_constitution_loop.png|615]]
 
 ### Moonshot AI Kimi: Scaling RL to Non-Verifiable Tasks
 
@@ -109,7 +109,7 @@ Moonshot AI launched Kimi k1.5 and K2, pushing the boundaries of what RL can ach
 
 Furthermore, Moonshot AI discovered that scaling the context window to 128k tokens during the RL phase naturally allows the model to run implicit searches over the reasoning space via auto-regressive predictions. This established a simple but effective RL framework. Because the model can utilize massive context to plan, reflect, and correct itself, Kimi achieves strong results on math, coding, and vision-language reasoning tasks without needing computationally heavy architectural tricks like Monte Carlo Tree Search (MCTS) or traditional Process Reward Models (PRMs).
 
-![[ChatGPT Image May 19, 2026, 01_59_05 PM.png]]
+![[kimi_generative_reward_model_loop.png]]
 
 ### Mistral AI: Magistral and Multilingual Reasoning
 
@@ -117,7 +117,7 @@ In early 2025, Mistral AI entered the frontier reasoning race with the release o
 
 Mistral's approach contrasts with labs that rely entirely on distilling traces from larger, closed models. Magistral was presented as a reasoning-focused extension of Mistral's frontier model family, with reinforcement learning playing a central role in its post-training. To create the highly efficient Magistral Small, Mistral utilized a sophisticated bootstrapping pipeline: they generated reasoning traces from the Medium model, filtered them to maintain a mixed difficulty level, augmented the data with subsets from OpenThoughts and OpenR1, and blended in general instruction tuning data to ensure the model didn't lose its non-reasoning conversational skills. Perhaps its most unique feature is its native multilingual strategy; the model is trained to generate both reasoning traces and final responses in the user's requested language, showing that advanced reasoning behavior does not have to be exclusively English.
 
-![[ChatGPT Image May 19, 2026, 01_59_42 PM.png]]
+![[mistral_magistral_rl_bootstrapping.png]]
 
 ## Limitations and Open Problems
 
