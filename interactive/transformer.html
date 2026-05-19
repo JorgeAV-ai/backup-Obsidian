@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Transformer: From Words to Understanding</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:24px 16px 4px;font-size:1.5rem;color:#cba6f7}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:16px;font-size:.9rem}
+.container{max-width:1200px;width:100%;margin:0 auto;padding:0 16px;flex:1}
+.mode-toggle{display:flex;gap:8px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
+.mode-toggle button{background:#313244;border:1px solid #45475a;color:#cdd6f4;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;transition:all .2s}
+.mode-toggle button:hover,.mode-toggle button.active{background:#45475a;border-color:#cba6f7;color:#cba6f7}
+.step-controls{display:flex;gap:12px;justify-content:center;margin-bottom:16px;align-items:center}
+.step-controls button{background:#cba6f7;color:#1e1e2e;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s}
+.step-controls button:hover{background:#b4befe}
+.step-controls button:disabled{background:#45475a;color:#6c7086;cursor:default}
+.step-label{color:#f9e2af;font-size:.88rem;font-weight:500}
+.arch-wrapper{display:flex;gap:24px;justify-content:center;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px}
+.arch-column{background:#181825;border:1px solid #313244;border-radius:14px;padding:18px;min-width:280px;max-width:440px;flex:1;transition:opacity .4s}
+.arch-column.inactive{opacity:.25;pointer-events:none}
+.arch-column h2{text-align:center;font-size:1.05rem;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #313244}
+.encoder-title{color:#89b4fa}
+.decoder-title{color:#a6e3a1}
+.output-title{color:#f9e2af}
+.block{background:#313244;border:1px solid #45475a;border-radius:10px;margin-bottom:10px;overflow:hidden;transition:all .3s}
+.block.active{border-color:#cba6f7;box-shadow:0 0 16px rgba(203,166,247,.25)}
+.block.highlighted{border-color:#f9e2af;box-shadow:0 0 16px rgba(249,226,175,.3)}
+.block-header{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:.88rem;font-weight:600}
+.block-header:hover{background:#45475a}
+.block-detail{padding:0 14px;max-height:0;overflow:hidden;transition:max-height .4s ease,padding .3s;font-size:.82rem;color:#a6adc8;line-height:1.6}
+.block-detail.open{max-height:400px;padding:10px 14px}
+.token-flow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.token{background:#313244;border:1px solid #45475a;padding:6px 14px;border-radius:8px;font-size:.88rem;transition:all .3s}
+.token.active{background:#cba6f7;color:#1e1e2e;border-color:#cba6f7}
+.token.generated{background:#a6e3a1;color:#1e1e2e;border-color:#a6e3a1}
+.token.pending{color:#585b70;border-style:dashed}
+.attention-vis{display:flex;gap:4px;align-items:center;margin:6px 0;flex-wrap:wrap}
+.att-dot{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:700;transition:all .3s}
+.arrow-label{font-size:.75rem;color:#f9e2af;margin:6px 0}
+.cross-att-vis{background:#1e1e2e;border-radius:8px;padding:10px;margin:8px 0}
+.cross-att-row{display:flex;align-items:center;gap:6px;margin:3px 0;font-size:.78rem}
+.cross-att-bar{height:10px;border-radius:4px;transition:width .5s}
+.output-panel{background:#181825;border:1px solid #313244;border-radius:14px;padding:18px;text-align:center}
+.output-panel .result{font-size:1.2rem;font-weight:700;color:#a6e3a1;margin-top:8px}
+.info-box{background:#313244;border:1px solid #45475a;border-radius:10px;padding:14px 18px;margin-top:16px;font-size:.85rem;color:#a6adc8;line-height:1.6;text-align:center}
+.info-box strong{color:#f9e2af}
+footer{text-align:center;padding:20px;color:#585b70;font-size:.8rem;margin-top:24px;border-top:1px solid #313244}
+@media(max-width:700px){.arch-column{min-width:100%}}
+</style>
+</head>
+<body>
+<h1>The Transformer: From Words to Understanding</h1>
+<p class="subtitle">Walk through encoder-decoder, encoder-only, and decoder-only architectures step by step</p>
+<div class="container">
+  <div class="mode-toggle" id="modeToggle"></div>
+  <div class="step-controls">
+    <button id="btnReset" onclick="resetSteps()">Reset</button>
+    <button id="btnPrev" onclick="prevStep()" disabled>Previous</button>
+    <span class="step-label" id="stepLabel">Click "Next Step" to begin</span>
+    <button id="btnNext" onclick="nextStep()">Next Step</button>
+  </div>
+  <div id="archArea"></div>
+  <div class="info-box" id="infoBox"></div>
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const modes=[
+  {id:'enc-dec',label:'Encoder-Decoder (Translation)',input:['I','love','cats'],output:['Me','encantan','los','gatos'],task:'Translation'},
+  {id:'enc-only',label:'Encoder-Only (Classification)',input:['[CLS]','This','movie','is','great'],output:['Positive'],task:'Classification'},
+  {id:'dec-only',label:'Decoder-Only (GPT)',input:['Once','upon','a'],output:['time','there','was','...'],task:'Generation'}
+];
+let currentMode=0,currentStep=-1;
+
+const encLayers=[
+  {name:'Input Embedding + Position',detail:'Each word is converted to a 512-dim vector. Positional encoding is added so the model knows word order. "I" gets position 0, "love" position 1, "cats" position 2.'},
+  {name:'Self-Attention (Layer 1)',detail:'Each word attends to every other word. At this early layer, attention is mostly local: "love" attends to "I" (subject) and "cats" (object). Patterns are relatively uniform.',attentionLocal:true},
+  {name:'Feed-Forward Network (Layer 1)',detail:'Each position is independently processed through a 2-layer MLP (512 -> 2048 -> 512). This adds non-linearity and stores learned "knowledge" patterns.'},
+  {name:'Self-Attention (Layer 6)',detail:'In deeper layers, attention becomes more semantic and global. "cats" now strongly attends to "love" (understanding the relationship), and contextual representations encode meaning beyond individual words.',attentionGlobal:true},
+  {name:'Feed-Forward Network (Layer 6)',detail:'Final FFN refines representations. The output for each position is now a rich contextual embedding that captures the full meaning in context.'}
+];
+
+const decLayers=[
+  {name:'Output Embedding + Position',detail:'Previously generated tokens are embedded. During generation of "gatos", the decoder has: "Me", "encantan", "los" as context.'},
+  {name:'Causal Self-Attention',detail:'Each output word can only attend to previous output words (masked attention). "los" can see "Me" and "encantan" but not "gatos". This prevents information leakage during training.'},
+  {name:'Cross-Attention',detail:'The decoder attends to the encoder output. When generating "gatos", the cross-attention focuses heavily on "cats" (0.72) with some attention to "love" (0.15). This is how the decoder "reads" the input.',crossAtt:true},
+  {name:'Feed-Forward Network',detail:'Processes each position through MLP. Combines the self-attended decoder context with cross-attended encoder information.'},
+  {name:'Linear + Softmax',detail:'Projects to vocabulary size and applies softmax. The highest probability word becomes the next output token.'}
+];
+
+const stepsEncDec=[
+  {phase:'enc',layer:0,msg:'Embedding input words "I love cats" into 512-dimensional vectors with positional encoding'},
+  {phase:'enc',layer:1,msg:'Layer 1 self-attention: words discover local relationships'},
+  {phase:'enc',layer:2,msg:'Layer 1 FFN: non-linear transformation of each position'},
+  {phase:'enc',layer:3,msg:'Layer 6 self-attention: deep semantic understanding emerges'},
+  {phase:'enc',layer:4,msg:'Layer 6 FFN: final contextual representations ready'},
+  {phase:'dec',layer:0,genIdx:0,msg:'Start decoding: embed position 0, generate "Me"'},
+  {phase:'dec',layer:1,genIdx:0,msg:'Causal self-attention on "Me" (only self)'},
+  {phase:'dec',layer:2,genIdx:0,msg:'Cross-attention: "Me" attends to encoder (strong attention to "I")'},
+  {phase:'dec',layer:3,genIdx:0,msg:'FFN processing for first output position'},
+  {phase:'dec',layer:4,genIdx:0,msg:'Softmax selects "Me" as output'},
+  {phase:'dec',layer:0,genIdx:1,msg:'Embed "Me" + position 1 for generating "encantan"'},
+  {phase:'dec',layer:2,genIdx:1,msg:'Cross-attention: strong link from "encantan" to "love" (0.65)'},
+  {phase:'dec',layer:4,genIdx:1,msg:'"encantan" selected - verb conjugated for context!'},
+  {phase:'dec',layer:0,genIdx:2,msg:'Generating "los" - the article for the noun phrase'},
+  {phase:'dec',layer:4,genIdx:2,msg:'"los" selected (masculine plural, matching "gatos")'},
+  {phase:'dec',layer:0,genIdx:3,msg:'Generating final word "gatos"'},
+  {phase:'dec',layer:2,genIdx:3,msg:'Cross-attention: "gatos" attends strongly to "cats" (0.72)'},
+  {phase:'dec',layer:4,genIdx:3,msg:'"gatos" selected. Translation complete!'}
+];
+
+const stepsEncOnly=[
+  {phase:'enc',layer:0,msg:'Embedding "[CLS] This movie is great" with positional encoding'},
+  {phase:'enc',layer:1,msg:'Self-attention: all words attend to all words (bidirectional)'},
+  {phase:'enc',layer:2,msg:'FFN processes patterns from attention'},
+  {phase:'enc',layer:3,msg:'Deep attention: "great" strongly connects with [CLS] token'},
+  {phase:'enc',layer:4,msg:'Final representations encode full context'},
+  {phase:'output',msg:'[CLS] token representation -> classification head -> "Positive"'}
+];
+
+const stepsDecOnly=[
+  {phase:'dec',layer:0,genIdx:0,msg:'Input "Once upon a" -> embed with positions -> start generating'},
+  {phase:'dec',layer:1,genIdx:0,msg:'Causal self-attention: each word only sees previous words'},
+  {phase:'dec',layer:3,genIdx:0,msg:'FFN processes attended representations'},
+  {phase:'dec',layer:4,genIdx:0,msg:'Predict next token: "time" (most probable continuation)'},
+  {phase:'dec',layer:1,genIdx:1,msg:'Self-attention over "Once upon a time" -> predict next'},
+  {phase:'dec',layer:4,genIdx:1,msg:'Generate "there" - classic story pattern recognized'},
+  {phase:'dec',layer:4,genIdx:2,msg:'Generate "was" - completing "Once upon a time there was..."'},
+  {phase:'dec',layer:4,genIdx:3,msg:'Generation continues auto-regressively: "..." (and so on)'}
+];
+
+function getAllSteps(){return [stepsEncDec,stepsEncOnly,stepsDecOnly][currentMode]}
+
+function initModes(){
+  const t=document.getElementById('modeToggle');
+  t.innerHTML='';
+  modes.forEach((m,i)=>{
+    const b=document.createElement('button');
+    b.textContent=m.label;
+    b.className=i===currentMode?'active':'';
+    b.onclick=()=>{currentMode=i;currentStep=-1;initModes();render()};
+    t.appendChild(b);
+  });
+}
+
+function render(){
+  const m=modes[currentMode];
+  const steps=getAllSteps();
+  const area=document.getElementById('archArea');
+  const info=document.getElementById('infoBox');
+  const step=currentStep>=0&&currentStep<steps.length?steps[currentStep]:null;
+
+  const showEncoder=currentMode===0||currentMode===1;
+  const showDecoder=currentMode===0||currentMode===2;
+  const genIdx=step?step.genIdx??-1:-1;
+  const maxGen=currentStep>=0?Math.max(...steps.slice(0,currentStep+1).filter(s=>s.genIdx!==undefined).map(s=>s.genIdx),-1):-1;
+
+  let html='<div class="arch-wrapper">';
+
+  // Encoder column
+  if(showEncoder){
+    const encActive=!step||step.phase==='enc';
+    html+=`<div class="arch-column${encActive?'':' '}">`;
+    html+=`<h2 class="encoder-title">Encoder</h2>`;
+    html+=`<div class="token-flow">${m.input.map(w=>`<div class="token active">${w}</div>`).join('')}</div>`;
+    encLayers.forEach((l,i)=>{
+      const isActive=step&&step.phase==='enc'&&step.layer===i;
+      const isPast=step&&step.phase==='enc'&&step.layer>i || (step&&step.phase!=='enc'&&(currentMode===0||currentMode===1));
+      html+=`<div class="block${isActive?' active':isPast?' highlighted':''}">`;
+      html+=`<div class="block-header" onclick="this.nextElementSibling.classList.toggle('open')">${l.name}<span style="color:#585b70">${isActive?'<<<':''}</span></div>`;
+      html+=`<div class="block-detail${isActive?' open':''}">${l.detail}`;
+      if(l.attentionLocal&&isActive){
+        html+=`<div class="arrow-label">Attention pattern (early - local):</div><div class="attention-vis">`;
+        m.input.forEach((w,wi)=>{
+          const colors=['#89b4fa','#cba6f7','#a6e3a1'];
+          html+=`<div class="att-dot" style="background:${colors[wi%3]};width:${24+wi*4}px;height:${24+wi*4}px">${w.slice(0,2)}</div>`;
+        });
+        html+=`</div>`;
+      }
+      if(l.attentionGlobal&&isActive){
+        html+=`<div class="arrow-label">Attention pattern (deep - global/semantic):</div><div class="attention-vis">`;
+        m.input.forEach((w)=>{
+          html+=`<div class="att-dot" style="background:#f9e2af;width:30px;height:30px">${w.slice(0,2)}</div>`;
+        });
+        html+=`</div>`;
+      }
+      html+=`</div></div>`;
+    });
+    html+=`</div>`;
+  }
+
+  // Decoder column
+  if(showDecoder){
+    const decActive=!step||step.phase==='dec';
+    html+=`<div class="arch-column${decActive?'':' '}">`;
+    html+=`<h2 class="decoder-title">${currentMode===2?'Decoder (GPT)':'Decoder'}</h2>`;
+    html+=`<div class="token-flow">`;
+    if(currentMode===2){
+      m.input.forEach(w=>{html+=`<div class="token active">${w}</div>`});
+      m.output.forEach((w,i)=>{
+        const cls=i<=maxGen?'token generated':'token pending';
+        html+=`<div class="${cls}">${w}</div>`;
+      });
+    } else {
+      m.output.forEach((w,i)=>{
+        const cls=i<=maxGen?'token generated':i===maxGen+1&&step&&step.phase==='dec'?'token active':'token pending';
+        html+=`<div class="${cls}">${w}</div>`;
+      });
+    }
+    html+=`</div>`;
+    const layerSet=currentMode===2?decLayers.filter(l=>l.name!=='Cross-Attention'):decLayers;
+    layerSet.forEach((l,i)=>{
+      const origIdx=decLayers.indexOf(l);
+      const isActive=step&&step.phase==='dec'&&step.layer===origIdx;
+      const isPast=step&&step.phase==='dec'&&step.layer>origIdx;
+      html+=`<div class="block${isActive?' active':isPast?' highlighted':''}">`;
+      html+=`<div class="block-header" onclick="this.nextElementSibling.classList.toggle('open')">${l.name}<span style="color:#585b70">${isActive?'<<<':''}</span></div>`;
+      html+=`<div class="block-detail${isActive?' open':''}">${l.detail}`;
+      if(l.crossAtt&&isActive&&currentMode===0){
+        const crossWeights=[
+          {src:'I',w:.08},{src:'love',w:.15},{src:'cats',w:.72}
+        ];
+        if(genIdx===0){crossWeights[0].w=.7;crossWeights[1].w=.15;crossWeights[2].w=.1}
+        else if(genIdx===1){crossWeights[0].w=.12;crossWeights[1].w=.65;crossWeights[2].w=.18}
+        else if(genIdx===2){crossWeights[0].w=.08;crossWeights[1].w=.2;crossWeights[2].w=.55}
+        html+=`<div class="cross-att-vis">`;
+        html+=`<div style="font-size:.78rem;color:#f9e2af;margin-bottom:6px">Generating "${m.output[Math.max(0,genIdx)]}" attends to:</div>`;
+        crossWeights.forEach(cw=>{
+          html+=`<div class="cross-att-row"><span style="width:40px">${cw.src}</span><div class="cross-att-bar" style="width:${cw.w*200}px;background:${cw.w>.4?'#a6e3a1':'#89b4fa'}"></div><span>${cw.w.toFixed(2)}</span></div>`;
+        });
+        html+=`</div>`;
+      }
+      html+=`</div></div>`;
+    });
+    html+=`</div>`;
+  }
+
+  // Output column for encoder-only
+  if(currentMode===1&&step&&step.phase==='output'){
+    html+=`<div class="arch-column"><h2 class="output-title">Output</h2>`;
+    html+=`<div class="output-panel"><p style="color:#a6adc8">[CLS] token -> Classification Head</p>`;
+    html+=`<div class="result">Positive &#10003;</div></div></div>`;
+  }
+
+  html+=`</div>`;
+  area.innerHTML=html;
+
+  // Info
+  if(step) info.innerHTML=`<strong>Step ${currentStep+1}/${steps.length}:</strong> ${step.msg}`;
+  else{
+    const descs={
+      0:'<strong>Encoder-Decoder:</strong> The encoder reads the full input bidirectionally. The decoder generates output one token at a time, using cross-attention to read the encoder. Used for translation, summarization.',
+      1:'<strong>Encoder-Only (BERT):</strong> Bidirectional attention over the full input. A special [CLS] token collects the "summary" representation used for classification. No generation, just understanding.',
+      2:'<strong>Decoder-Only (GPT):</strong> Causal (left-to-right) attention only. Each token predicts the next one. The same architecture that powers ChatGPT, Claude, and other LLMs.'
+    };
+    info.innerHTML=descs[currentMode];
+  }
+
+  updateButtons();
+}
+
+function updateButtons(){
+  const steps=getAllSteps();
+  document.getElementById('btnPrev').disabled=currentStep<=0;
+  document.getElementById('btnNext').disabled=currentStep>=steps.length-1;
+  document.getElementById('stepLabel').textContent=currentStep<0?'Click "Next Step" to begin':`Step ${currentStep+1} of ${steps.length}`;
+}
+
+function nextStep(){const s=getAllSteps();if(currentStep<s.length-1){currentStep++;render()}}
+function prevStep(){if(currentStep>0){currentStep--;render()}}
+function resetSteps(){currentStep=-1;render()}
+
+initModes();render();
+</script>
+</body>
+</html>

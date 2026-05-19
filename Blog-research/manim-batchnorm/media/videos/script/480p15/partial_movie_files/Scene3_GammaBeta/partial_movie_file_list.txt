@@ -1,0 +1,10 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene3_GammaBeta/4032159847_1799922393_4293127879.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene3_GammaBeta/3753229454_1105215870_935272677.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene3_GammaBeta/3753229454_3257626694_4145355764.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene3_GammaBeta/3753229454_95173422_937949340.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene3_GammaBeta/3753229454_4284813195_3332305490.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene3_GammaBeta/3753229454_2688965532_4209555462.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene3_GammaBeta/3753229454_458188266_3155742260.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene3_GammaBeta/3753229454_2844725853_3129990974.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene3_GammaBeta/3753229454_3877907558_242092105.mp4'

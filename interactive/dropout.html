@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dropout: Training with Surprise Quizzes</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:1.5rem 1rem .5rem;font-size:1.8rem;background:linear-gradient(135deg,#f38ba8,#fab387);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:1.2rem;font-size:.95rem}
+.container{max-width:1100px;margin:0 auto;padding:0 1rem;flex:1;width:100%}
+.top-row{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:1rem}
+.mode-btn{padding:.6rem 1.5rem;border-radius:8px;border:2px solid #585b70;background:#313244;color:#cdd6f4;cursor:pointer;font-size:1rem;font-weight:600;transition:all .2s}
+.mode-btn:hover{border-color:#89b4fa}
+.mode-btn.active-train{border-color:#f9e2af;background:#3d3520;color:#f9e2af}
+.mode-btn.active-infer{border-color:#a6e3a1;background:#1e3a2a;color:#a6e3a1}
+.retrain{padding:.5rem 1rem;border-radius:8px;border:1px solid #585b70;background:#45475a;color:#cdd6f4;cursor:pointer;font-size:.85rem;transition:all .2s}
+.retrain:hover{background:#585b70;border-color:#f9e2af}
+.main-layout{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center}
+.network-panel{flex:1;min-width:400px;background:#313244;border-radius:12px;padding:1.2rem;position:relative}
+.network-panel h3{text-align:center;font-size:.95rem;color:#89b4fa;margin-bottom:.5rem}
+canvas#netCanvas{width:100%;max-width:500px;display:block;margin:0 auto}
+.net-info{text-align:center;margin-top:.6rem;font-size:.9rem;color:#a6adc8}
+.net-info .highlight{color:#f9e2af;font-weight:700}
+.side-panel{width:320px;display:flex;flex-direction:column;gap:1rem}
+.card{background:#313244;border-radius:12px;padding:1rem}
+.card h3{font-size:.9rem;color:#89b4fa;margin-bottom:.6rem}
+.slider-row{display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem}
+.slider-row label{font-size:.85rem;font-weight:600;min-width:100px}
+.slider-row input[type=range]{flex:1;accent-color:#f38ba8}
+.slider-row .val{color:#f9e2af;font-weight:700;min-width:40px;text-align:right}
+.accuracy-bars{display:flex;flex-direction:column;gap:.6rem}
+.acc-row{display:flex;align-items:center;gap:.5rem}
+.acc-row .lbl{font-size:.78rem;min-width:45px;text-align:right;color:#a6adc8}
+.acc-row .bar-outer{flex:1;height:20px;background:#45475a;border-radius:4px;overflow:hidden;position:relative}
+.acc-row .bar-inner{height:100%;border-radius:4px;transition:width .5s}
+.acc-row .bar-inner.train-bar{background:#89b4fa}
+.acc-row .bar-inner.test-bar{background:#a6e3a1}
+.acc-row .pct{font-size:.78rem;font-weight:600;min-width:35px}
+.verdict{text-align:center;font-weight:700;font-size:.9rem;margin-top:.5rem;padding:.4rem;border-radius:6px}
+.verdict.overfit{color:#f38ba8;background:rgba(243,139,168,.1)}
+.verdict.good{color:#a6e3a1;background:rgba(166,227,161,.1)}
+.verdict.underfit{color:#fab387;background:rgba(250,179,135,.1)}
+.analogy{background:#313244;border-radius:12px;padding:1rem;margin:1rem 0;text-align:center;font-style:italic;color:#a6adc8;font-size:.9rem;line-height:1.5;border-left:3px solid #cba6f7}
+.weight-note{text-align:center;font-size:.82rem;color:#a6adc8;margin-top:.3rem;min-height:1.2rem}
+.legend{display:flex;gap:1rem;justify-content:center;margin-top:.5rem;font-size:.75rem}
+.legend span{display:flex;align-items:center;gap:.3rem}
+.legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+footer{text-align:center;padding:1.5rem;color:#585b70;font-size:.8rem;margin-top:auto}
+@media(max-width:800px){.main-layout{flex-direction:column;align-items:center}.side-panel{width:100%;max-width:500px}.network-panel{min-width:300px}}
+</style>
+</head>
+<body>
+<h1>Dropout: Training with Surprise Quizzes</h1>
+<p class="subtitle">See how randomly disabling neurons prevents overfitting</p>
+<div class="container">
+  <div class="top-row">
+    <button class="mode-btn active-train" id="trainBtn" onclick="setMode('train')">Train Mode</button>
+    <button class="mode-btn" id="inferBtn" onclick="setMode('infer')">Inference Mode</button>
+    <button class="retrain" onclick="retrain()">Re-roll Dropout</button>
+  </div>
+
+  <div class="main-layout">
+    <div class="network-panel">
+      <h3 id="netTitle">Training Mode - Dropout Active</h3>
+      <canvas id="netCanvas" width="500" height="320"></canvas>
+      <div class="net-info" id="netInfo">Active: <span class="highlight">17/24</span> neurons (70%)</div>
+      <div class="weight-note" id="weightNote"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:#89b4fa"></span> Active</span>
+        <span><span class="dot" style="background:#585b70"></span> Dropped</span>
+        <span><span class="dot" style="background:#a6e3a1"></span> Input/Output</span>
+      </div>
+    </div>
+
+    <div class="side-panel">
+      <div class="card">
+        <h3>Dropout Rate (p)</h3>
+        <div class="slider-row">
+          <label>Rate:</label>
+          <input type="range" id="dropoutSlider" min="0" max="80" value="30" step="5">
+          <span class="val" id="dropoutVal">30%</span>
+        </div>
+        <div id="dropoutDesc" style="font-size:.8rem;color:#a6adc8;text-align:center;margin-top:.3rem"></div>
+      </div>
+
+      <div class="card">
+        <h3>Accuracy Curves</h3>
+        <div style="font-size:.75rem;color:#a6adc8;margin-bottom:.4rem;display:flex;gap:1rem;justify-content:center">
+          <span><span class="dot" style="background:#89b4fa;width:8px;height:8px;display:inline-block;border-radius:50%"></span> Train</span>
+          <span><span class="dot" style="background:#a6e3a1;width:8px;height:8px;display:inline-block;border-radius:50%"></span> Test</span>
+        </div>
+        <div class="accuracy-bars" id="accBars"></div>
+        <div class="verdict" id="verdict"></div>
+      </div>
+
+      <div class="card">
+        <h3>Classification Task</h3>
+        <div style="text-align:center;font-size:2rem;margin:.3rem 0">🐱 vs 🐶</div>
+        <div style="text-align:center;font-size:.8rem;color:#a6adc8">Binary image classification</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="analogy">
+    "Dropout is like a teacher giving surprise quizzes: students (neurons) can't rely on their classmates -- each must learn independently."
+  </div>
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const canvas = document.getElementById('netCanvas');
+const ctx = canvas.getContext('2d');
+const layers = [8, 8, 8]; // 3 hidden layers
+const inputN = 4, outputN = 2;
+let mode = 'train';
+let dropRate = 30;
+let dropped = []; // boolean arrays per layer
+
+function initDropped() {
+  dropped = layers.map(n => {
+    const arr = [];
+    for (let i = 0; i < n; i++) arr.push(Math.random() * 100 < dropRate);
+    return arr;
+  });
+}
+
+function getAccuracy(p) {
+  if (p <= 10) return { train: 99, test: 70, label: 'OVERFITTING', cls: 'overfit' };
+  if (p <= 20) return { train: 95, test: 82, label: 'SLIGHT OVERFITTING', cls: 'overfit' };
+  if (p <= 40) return { train: 92, test: 88, label: 'GOOD GENERALIZATION', cls: 'good' };
+  if (p <= 55) return { train: 85, test: 83, label: 'GOOD REGULARIZATION', cls: 'good' };
+  if (p <= 65) return { train: 72, test: 68, label: 'TOO MUCH DROPOUT', cls: 'underfit' };
+  return { train: 60, test: 55, label: 'UNDERFITTING', cls: 'underfit' };
+}
+
+function renderAccuracy() {
+  const acc = getAccuracy(dropRate);
+  const el = document.getElementById('accBars');
+  el.innerHTML = `
+    <div class="acc-row"><span class="lbl">Train</span><div class="bar-outer"><div class="bar-inner train-bar" style="width:${acc.train}%"></div></div><span class="pct">${acc.train}%</span></div>
+    <div class="acc-row"><span class="lbl">Test</span><div class="bar-outer"><div class="bar-inner test-bar" style="width:${acc.test}%"></div></div><span class="pct">${acc.test}%</span></div>
+  `;
+  const v = document.getElementById('verdict');
+  v.textContent = acc.label + (acc.cls === 'good' ? ' \u2713' : '');
+  v.className = 'verdict ' + acc.cls;
+}
+
+function renderDropoutDesc() {
+  let desc = '';
+  if (dropRate === 0) desc = 'No dropout -- risk of overfitting! Network memorizes training data.';
+  else if (dropRate <= 20) desc = 'Light regularization.';
+  else if (dropRate <= 40) desc = 'Good regularization for most networks.';
+  else if (dropRate <= 55) desc = 'Good regularization for large networks.';
+  else if (dropRate <= 65) desc = 'Aggressive -- network may struggle to learn.';
+  else desc = 'Too aggressive! Network can\'t learn effectively.';
+  document.getElementById('dropoutDesc').textContent = desc;
+}
+
+function drawNetwork() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const allLayers = [inputN, ...layers, outputN];
+  const numLayers = allLayers.length;
+  const xSpacing = W / (numLayers + 1);
+  const radius = 14;
+
+  // Compute positions
+  const positions = allLayers.map((n, li) => {
+    const x = xSpacing * (li + 1);
+    const ySpacing = Math.min(38, (H - 40) / n);
+    const startY = (H - (n - 1) * ySpacing) / 2;
+    return Array.from({length: n}, (_, i) => ({x, y: startY + i * ySpacing}));
+  });
+
+  // Determine active neurons
+  const isActive = allLayers.map((n, li) => {
+    if (li === 0 || li === numLayers - 1) return Array(n).fill(true); // input/output always active
+    const hiddenIdx = li - 1;
+    if (mode === 'infer') return Array(n).fill(true);
+    return dropped[hiddenIdx].map(d => !d);
+  });
+
+  // Draw connections
+  for (let li = 0; li < numLayers - 1; li++) {
+    for (let i = 0; i < allLayers[li]; i++) {
+      if (!isActive[li][i]) continue;
+      for (let j = 0; j < allLayers[li + 1]; j++) {
+        if (!isActive[li + 1][j]) continue;
+        const from = positions[li][i];
+        const to = positions[li + 1][j];
+        ctx.beginPath();
+        ctx.moveTo(from.x + radius, from.y);
+        ctx.lineTo(to.x - radius, to.y);
+        const alpha = mode === 'infer' ? 0.15 : 0.2;
+        ctx.strokeStyle = `rgba(137,180,250,${alpha})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw neurons
+  for (let li = 0; li < numLayers; li++) {
+    for (let i = 0; i < allLayers[li]; i++) {
+      const {x, y} = positions[li][i];
+      const active = isActive[li][i];
+      const isIO = li === 0 || li === numLayers - 1;
+
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+
+      if (!active) {
+        ctx.fillStyle = '#45475a';
+        ctx.fill();
+        ctx.strokeStyle = '#585b70';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Draw X
+        ctx.beginPath();
+        ctx.moveTo(x - 6, y - 6); ctx.lineTo(x + 6, y + 6);
+        ctx.moveTo(x + 6, y - 6); ctx.lineTo(x - 6, y + 6);
+        ctx.strokeStyle = '#f38ba8';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else {
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        if (isIO) {
+          grad.addColorStop(0, '#a6e3a1');
+          grad.addColorStop(1, '#40a040');
+        } else {
+          grad.addColorStop(0, '#89b4fa');
+          grad.addColorStop(1, '#4060c0');
+        }
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.strokeStyle = isIO ? '#a6e3a1' : '#89b4fa';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        if (mode === 'infer' && !isIO) {
+          // Show scale factor
+          ctx.fillStyle = '#1e1e2e';
+          ctx.font = 'bold 9px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const scale = (1 - dropRate / 100).toFixed(1);
+          ctx.fillText('x' + scale, x, y);
+        }
+      }
+    }
+  }
+
+  // Labels
+  ctx.fillStyle = '#a6adc8';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  const labels = ['Input', 'Hidden 1', 'Hidden 2', 'Hidden 3', 'Output'];
+  for (let li = 0; li < numLayers; li++) {
+    ctx.fillText(labels[li], positions[li][0].x, H - 8);
+  }
+
+  // Update info
+  const totalHidden = layers.reduce((a, b) => a + b, 0);
+  let activeHidden;
+  if (mode === 'infer') {
+    activeHidden = totalHidden;
+  } else {
+    activeHidden = dropped.reduce((sum, layer) => sum + layer.filter(d => !d).length, 0);
+  }
+  const total = totalHidden;
+  const pct = Math.round(activeHidden / total * 100);
+  document.getElementById('netInfo').innerHTML = `Active: <span class="highlight">${activeHidden}/${total}</span> neurons (${pct}%)`;
+  document.getElementById('netTitle').textContent = mode === 'train' ? 'Training Mode - Dropout Active' : 'Inference Mode - All Neurons Active';
+  document.getElementById('weightNote').textContent = mode === 'infer'
+    ? `Each weight multiplied by ${(1 - dropRate / 100).toFixed(2)} to compensate for full network`
+    : mode === 'train' && dropRate > 0 ? 'Different random neurons dropped each training step!' : '';
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('trainBtn').className = 'mode-btn' + (m === 'train' ? ' active-train' : '');
+  document.getElementById('inferBtn').className = 'mode-btn' + (m === 'infer' ? ' active-infer' : '');
+  drawNetwork();
+}
+
+function retrain() {
+  initDropped();
+  mode = 'train';
+  setMode('train');
+}
+
+document.getElementById('dropoutSlider').addEventListener('input', e => {
+  dropRate = parseInt(e.target.value);
+  document.getElementById('dropoutVal').textContent = dropRate + '%';
+  initDropped();
+  drawNetwork();
+  renderAccuracy();
+  renderDropoutDesc();
+});
+
+initDropped();
+drawNetwork();
+renderAccuracy();
+renderDropoutDesc();
+</script>
+</body>
+</html>

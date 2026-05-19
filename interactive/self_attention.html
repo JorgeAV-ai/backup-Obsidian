@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Self-Attention: How Words Talk to Each Other</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:24px 16px 8px;font-size:1.6rem;color:#cba6f7}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:16px;font-size:.95rem}
+.container{max-width:1100px;width:100%;margin:0 auto;padding:0 16px;flex:1}
+.sentence-selector{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:20px}
+.sentence-selector button{background:#313244;border:1px solid #45475a;color:#cdd6f4;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:.85rem;transition:all .2s}
+.sentence-selector button:hover,.sentence-selector button.active{background:#45475a;border-color:#cba6f7;color:#cba6f7}
+.controls{display:flex;justify-content:center;gap:20px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.controls label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.9rem}
+.controls input[type=checkbox]{accent-color:#cba6f7;width:16px;height:16px}
+.word-row-wrapper{position:relative;min-height:160px;margin-bottom:20px}
+.word-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;position:relative;z-index:2;padding-top:60px}
+.word-box{background:#313244;border:2px solid #45475a;padding:10px 16px;border-radius:10px;cursor:pointer;font-size:1rem;font-weight:600;transition:all .25s;user-select:none;position:relative}
+.word-box:hover{border-color:#89b4fa;transform:translateY(-2px)}
+.word-box.query{background:#cba6f7;color:#1e1e2e;border-color:#cba6f7;transform:translateY(-4px);box-shadow:0 4px 20px rgba(203,166,247,.4)}
+.word-box.target{border-color:#89b4fa}
+.arrow-canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none}
+.heatmap-section{margin-top:10px}
+.heatmap-section h2{font-size:1.1rem;color:#89b4fa;margin-bottom:12px;text-align:center}
+.heatmap-container{overflow-x:auto;display:flex;justify-content:center}
+.heatmap-table{border-collapse:collapse}
+.heatmap-table th{padding:6px 4px;font-size:.7rem;color:#a6adc8;font-weight:500;writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);height:80px}
+.heatmap-table td{width:40px;height:36px;text-align:center;font-size:.65rem;cursor:pointer;transition:all .15s;position:relative;border:1px solid #1e1e2e}
+.heatmap-table td:hover{outline:2px solid #f5e0dc;z-index:5}
+.heatmap-table .row-label{background:transparent !important;color:#a6adc8;font-size:.75rem;font-weight:500;width:auto;padding:4px 8px;text-align:right;border:none;cursor:default;writing-mode:horizontal-tb}
+.tooltip{position:fixed;background:#181825;border:1px solid #45475a;padding:10px 14px;border-radius:8px;font-size:.85rem;pointer-events:none;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:320px;opacity:0;transition:opacity .15s}
+.tooltip.visible{opacity:1}
+.analogy-box{background:#313244;border:1px solid #45475a;border-radius:12px;padding:16px 20px;margin-top:20px;text-align:center}
+.analogy-box h3{color:#f9e2af;font-size:.95rem;margin-bottom:8px}
+.analogy-box p{font-size:.88rem;color:#a6adc8;line-height:1.6}
+.analogy-box code{background:#45475a;padding:2px 8px;border-radius:4px;color:#89dceb;font-size:.85rem}
+footer{text-align:center;padding:20px;color:#585b70;font-size:.8rem;margin-top:24px;border-top:1px solid #313244}
+@media(max-width:700px){
+  .word-row{gap:6px}.word-box{padding:7px 10px;font-size:.85rem}
+  .heatmap-table th{font-size:.6rem;height:60px}.heatmap-table td{width:30px;height:28px;font-size:.55rem}
+}
+</style>
+</head>
+<body>
+<h1>Self-Attention: How Words Talk to Each Other</h1>
+<p class="subtitle">Click any word to make it the "query" and see what it attends to</p>
+
+<div class="container">
+  <div class="sentence-selector" id="sentenceSelector"></div>
+  <div class="controls">
+    <label><input type="checkbox" id="causalMask"> Causal Mask (GPT-style: words only attend to previous words)</label>
+  </div>
+  <div class="word-row-wrapper" id="wordRowWrapper">
+    <canvas class="arrow-canvas" id="arrowCanvas"></canvas>
+    <div class="word-row" id="wordRow"></div>
+  </div>
+  <div class="heatmap-section">
+    <h2>Full Attention Matrix</h2>
+    <div class="heatmap-container" id="heatmapContainer"></div>
+  </div>
+  <div class="analogy-box">
+    <h3>The Query-Key-Value Analogy</h3>
+    <p><code>Q = "What am I looking for?"</code> &nbsp;|&nbsp; <code>K = "What do I offer?"</code> &nbsp;|&nbsp; <code>V = "What's my actual content?"</code></p>
+    <p style="margin-top:8px;font-size:.82rem">Each word creates a Query, Key, and Value. The Query asks a question, Keys from other words answer how relevant they are, and Values provide the actual information that gets mixed in.</p>
+  </div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const sentences = [
+  {text:"The cat sat on the mat because it was tired", weights:null},
+  {text:"The bank by the river had no money", weights:null},
+  {text:"I saw her duck under the table", weights:null}
+];
+
+function buildWeights(words){
+  const n=words.length;
+  const w=Array.from({length:n},()=>Array(n).fill(0));
+  for(let i=0;i<n;i++){
+    // base: slight uniform + strong self
+    for(let j=0;j<n;j++) w[i][j]=0.02;
+    w[i][i]=0.15;
+  }
+  const wl=words.map(x=>x.toLowerCase());
+  // Sentence 1: "The cat sat on the mat because it was tired"
+  if(wl.includes("cat")&&wl.includes("tired")){
+    const idx={the0:0,cat:1,sat:2,on:3,the1:4,mat:5,because:6,it:7,was:8,tired:9};
+    // "it" attends strongly to "cat" (pronoun resolution) and medium to "tired"
+    w[7][1]=0.42; w[7][9]=0.25; w[7][8]=0.12; w[7][6]=0.05;
+    // "sat" attends to "cat" (who) and "mat" (where)
+    w[2][1]=0.42; w[2][5]=0.28; w[2][3]=0.08;
+    // "tired" attends to "cat" and "it"
+    w[9][1]=0.3; w[9][7]=0.25; w[9][8]=0.12;
+    // "mat" attends to "on", "sat"
+    w[5][3]=0.3; w[5][2]=0.2; w[5][4]=0.1;
+    // "because" links clauses
+    w[6][2]=0.2; w[6][9]=0.18; w[6][1]=0.12;
+    // "was" attends to "it","tired"
+    w[8][7]=0.35; w[8][9]=0.25;
+    // "on" attends to "sat","mat"
+    w[3][2]=0.3; w[3][5]=0.25;
+    // "the" tokens attend to their nouns
+    w[0][1]=0.4; w[4][5]=0.4;
+  }
+  // Sentence 2: "The bank by the river had no money"
+  if(wl.includes("bank")&&wl.includes("river")&&wl.includes("money")){
+    w[1][4]=0.35; w[1][7]=0.25; w[1][0]=0.1; // bank->river, money
+    w[4][1]=0.3; w[4][2]=0.2; w[4][3]=0.15; // river->bank
+    w[7][1]=0.38; w[7][5]=0.15; w[7][6]=0.12; // money->bank
+    w[5][7]=0.25; w[5][1]=0.2; // had->money,bank
+    w[6][7]=0.35; w[6][5]=0.15; // no->money
+    w[0][1]=0.4; w[3][4]=0.4;
+    w[2][1]=0.2; w[2][4]=0.25;
+  }
+  // Sentence 3: "I saw her duck under the table"
+  if(wl.includes("saw")&&wl.includes("duck")&&wl.includes("table")){
+    w[1][0]=0.2; w[1][3]=0.3; w[1][2]=0.15; // saw->duck,her
+    w[3][2]=0.3; w[3][4]=0.25; w[3][6]=0.15; // duck->her,under,table
+    w[2][0]=0.15; w[2][3]=0.25; w[2][1]=0.18; // her->duck,saw
+    w[4][3]=0.3; w[4][6]=0.28; // under->duck,table
+    w[6][4]=0.25; w[6][3]=0.2; w[6][5]=0.12; // table->under,duck
+    w[5][6]=0.4; // the->table
+    w[0][1]=0.3; w[0][3]=0.15;
+  }
+  // Normalize rows
+  for(let i=0;i<n;i++){
+    const s=w[i].reduce((a,b)=>a+b,0);
+    if(s>0) for(let j=0;j<n;j++) w[i][j]=Math.round((w[i][j]/s)*100)/100;
+  }
+  return w;
+}
+
+let currentSentence=0, selectedWord=-1, causalMask=false;
+const tooltip=document.getElementById('tooltip');
+
+function init(){
+  const sel=document.getElementById('sentenceSelector');
+  sel.innerHTML='';
+  sentences.forEach((s,i)=>{
+    const b=document.createElement('button');
+    b.textContent=`"${s.text}"`;
+    b.className=i===currentSentence?'active':'';
+    b.onclick=()=>{currentSentence=i;selectedWord=-1;init()};
+    sel.appendChild(b);
+  });
+  const words=sentences[currentSentence].text.split(' ');
+  if(!sentences[currentSentence].weights) sentences[currentSentence].weights=buildWeights(words);
+  renderWords(words);
+  renderHeatmap(words,sentences[currentSentence].weights);
+}
+
+function renderWords(words){
+  const row=document.getElementById('wordRow');
+  row.innerHTML='';
+  words.forEach((w,i)=>{
+    const d=document.createElement('div');
+    d.className='word-box'+(i===selectedWord?' query':'');
+    d.textContent=w;
+    d.onclick=()=>{selectedWord=selectedWord===i?-1:i;renderWords(words);drawArrows(words);renderHeatmap(words,sentences[currentSentence].weights)};
+    row.appendChild(d);
+  });
+  setTimeout(()=>drawArrows(words),50);
+}
+
+function drawArrows(words){
+  const canvas=document.getElementById('arrowCanvas');
+  const wrapper=document.getElementById('wordRowWrapper');
+  canvas.width=wrapper.offsetWidth;
+  canvas.height=wrapper.offsetHeight;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(selectedWord<0)return;
+  const boxes=[...document.querySelectorAll('.word-box')];
+  const weights=sentences[currentSentence].weights;
+  const wRect=wrapper.getBoundingClientRect();
+  boxes.forEach((box,j)=>{
+    if(j===selectedWord)return;
+    let att=weights[selectedWord][j];
+    if(causalMask&&j>selectedWord)att=0;
+    if(att<0.03)return;
+    const from=boxes[selectedWord].getBoundingClientRect();
+    const to=box.getBoundingClientRect();
+    const x1=from.left+from.width/2-wRect.left;
+    const y1=from.top-wRect.top;
+    const x2=to.left+to.width/2-wRect.left;
+    const y2=to.top-wRect.top;
+    const cp1y=y1-30-att*80;
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.quadraticCurveTo((x1+x2)/2,cp1y,x2,y2);
+    ctx.strokeStyle=`rgba(203,166,247,${Math.min(att*2.5,.95)})`;
+    ctx.lineWidth=Math.max(1,att*12);
+    ctx.stroke();
+    // arrowhead
+    const angle=Math.atan2(y2-cp1y,x2-(x1+x2)/2);
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-8*Math.cos(angle-0.4),y2-8*Math.sin(angle-0.4));
+    ctx.lineTo(x2-8*Math.cos(angle+0.4),y2-8*Math.sin(angle+0.4));
+    ctx.closePath();
+    ctx.fillStyle=`rgba(203,166,247,${Math.min(att*2.5,.95)})`;
+    ctx.fill();
+    box.classList.add('target');
+  });
+}
+
+function renderHeatmap(words,weights){
+  const n=words.length;
+  const c=document.getElementById('heatmapContainer');
+  let h='<table class="heatmap-table"><tr><th></th>';
+  words.forEach(w=>{h+=`<th>${w}</th>`});
+  h+='</tr>';
+  for(let i=0;i<n;i++){
+    h+=`<tr><td class="row-label">${words[i]}</td>`;
+    for(let j=0;j<n;j++){
+      let v=weights[i][j];
+      let masked=causalMask&&j>i;
+      let bg,fg;
+      if(masked){bg='#11111b';fg='#313244'}
+      else{
+        const intensity=Math.min(v*2.5,1);
+        const r=Math.round(30+intensity*173);
+        const g=Math.round(30+intensity*136);
+        const b2=Math.round(46+intensity*201);
+        bg=`rgb(${r},${g},${b2})`;
+        fg=intensity>.5?'#1e1e2e':'#cdd6f4';
+      }
+      const highlight=(i===selectedWord||j===selectedWord)?'outline:2px solid #f9e2af;z-index:3;':'';
+      h+=`<td style="background:${bg};color:${fg};${highlight}" data-i="${i}" data-j="${j}">${masked?'':v.toFixed(2)}</td>`;
+    }
+    h+='</tr>';
+  }
+  h+='</table>';
+  c.innerHTML=h;
+  c.querySelectorAll('td[data-i]').forEach(td=>{
+    td.addEventListener('mouseenter',e=>{
+      const i=+td.dataset.i,j=+td.dataset.j;
+      const masked=causalMask&&j>i;
+      const v=weights[i][j];
+      tooltip.innerHTML=masked?
+        `<strong>"${words[i]}"</strong> cannot attend to <strong>"${words[j]}"</strong><br><em>(blocked by causal mask)</em>`:
+        `How much does <strong>"${words[i]}"</strong> attend to <strong>"${words[j]}"</strong>?<br><strong>${v.toFixed(2)} (${Math.round(v*100)}%)</strong>`;
+      tooltip.classList.add('visible');
+      const r=td.getBoundingClientRect();
+      tooltip.style.left=Math.min(r.left,window.innerWidth-250)+'px';
+      tooltip.style.top=(r.bottom+8)+'px';
+    });
+    td.addEventListener('mouseleave',()=>tooltip.classList.remove('visible'));
+  });
+}
+
+document.getElementById('causalMask').addEventListener('change',e=>{
+  causalMask=e.target.checked;
+  const words=sentences[currentSentence].text.split(' ');
+  drawArrows(words);
+  renderHeatmap(words,sentences[currentSentence].weights);
+});
+
+window.addEventListener('resize',()=>{
+  const words=sentences[currentSentence].text.split(' ');
+  drawArrows(words);
+});
+
+init();
+</script>
+</body>
+</html>

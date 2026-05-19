@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG: Giving AI a Library Card</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:1.5rem 1rem .5rem;font-size:clamp(1.3rem,3vw,2rem);background:linear-gradient(135deg,#f9e2af,#a6e3a1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:1rem;font-size:.95rem}
+main{flex:1;max-width:1200px;width:100%;margin:0 auto;padding:0 1rem 1rem}
+.section{background:#313244;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #45475a}
+.section h2{font-size:1.1rem;margin-bottom:.8rem;color:#f9e2af}
+
+/* Toggle */
+.toggle-row{display:flex;justify-content:center;gap:.5rem;margin-bottom:1rem}
+.toggle-btn{padding:.5rem 1.2rem;border:2px solid #45475a;border-radius:8px;background:transparent;color:#a6adc8;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s}
+.toggle-btn.active-off{border-color:#f38ba8;background:rgba(243,139,168,.15);color:#f38ba8}
+.toggle-btn.active-on{border-color:#a6e3a1;background:rgba(166,227,161,.15);color:#a6e3a1}
+
+/* Chat */
+.chat-area{display:flex;gap:1rem;min-height:400px}
+.chat-main{flex:1;display:flex;flex-direction:column}
+.chat-messages{flex:1;background:#181825;border-radius:10px;padding:.8rem;overflow-y:auto;max-height:420px;border:1px solid #45475a}
+.msg{margin-bottom:.6rem;padding:.5rem .7rem;border-radius:8px;font-size:.85rem;line-height:1.4;animation:fadeIn .4s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg-user{background:#45475a;margin-left:2rem;border-bottom-right-radius:2px}
+.msg-user::before{content:'You: ';font-weight:600;color:#89b4fa}
+.msg-ai{background:#313244;margin-right:2rem;border-bottom-left-radius:2px}
+.msg-ai::before{content:'AI: ';font-weight:600;color:#cba6f7}
+.msg-ai.error{border-left:3px solid #f38ba8}
+.msg-ai.success{border-left:3px solid #a6e3a1}
+.msg-system{background:rgba(249,226,175,.1);border:1px dashed #f9e2af;font-size:.8rem;color:#f9e2af;text-align:center}
+.msg-doc{background:rgba(137,180,250,.1);border:1px solid rgba(137,180,250,.3);font-size:.8rem}
+.msg-doc::before{content:'&#128196; Retrieved: ';font-weight:600;color:#89b4fa}
+
+.chat-input-row{display:flex;gap:.4rem;margin-top:.6rem}
+.chat-input{flex:1;background:#181825;border:1px solid #45475a;border-radius:8px;padding:.5rem .7rem;color:#cdd6f4;font-size:.85rem;outline:none}
+.chat-input:focus{border-color:#89b4fa}
+.chat-send{padding:.5rem 1rem;background:#89b4fa;color:#1e1e2e;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem}
+.chat-send:hover{background:#74a8f7}
+
+/* Sidebar knowledge base */
+.kb-sidebar{width:260px;background:#181825;border-radius:10px;padding:.7rem;border:1px solid #45475a;overflow-y:auto;max-height:480px;flex-shrink:0}
+.kb-sidebar h3{font-size:.85rem;color:#f9e2af;margin-bottom:.5rem}
+.kb-doc{padding:.4rem .5rem;border-radius:6px;font-size:.72rem;margin-bottom:.4rem;background:#313244;border:1px solid #45475a;cursor:default;transition:all .3s;line-height:1.3}
+.kb-doc.matched{border-color:#a6e3a1;background:rgba(166,227,161,.1);box-shadow:0 0 8px rgba(166,227,161,.15)}
+.kb-doc .doc-title{font-weight:600;color:#89b4fa;margin-bottom:.15rem}
+.kb-doc .doc-preview{color:#a6adc8}
+
+/* Steps animation */
+.steps-row{display:flex;gap:.4rem;align-items:center;justify-content:center;flex-wrap:wrap;margin:.8rem 0}
+.step-box{background:#181825;border:1px solid #45475a;border-radius:8px;padding:.4rem .6rem;font-size:.75rem;text-align:center;min-width:100px;transition:all .4s;opacity:.4}
+.step-box.active{opacity:1;border-color:#a6e3a1;box-shadow:0 0 10px rgba(166,227,161,.2)}
+.step-arrow{color:#585b70;font-size:1.2rem}
+.step-box .step-icon{font-size:1.2rem;display:block;margin-bottom:.2rem}
+
+/* Chunk slider */
+.chunk-section{margin-top:.8rem}
+.chunk-doc{background:#181825;border-radius:8px;padding:.6rem;font-size:.78rem;line-height:1.4;border:1px solid #45475a;margin:.5rem 0}
+.chunk{display:inline;padding:1px 3px;border-radius:3px;transition:all .3s}
+.chunk:nth-child(odd){background:rgba(137,180,250,.15);border-bottom:2px solid #89b4fa}
+.chunk:nth-child(even){background:rgba(203,166,247,.15);border-bottom:2px solid #cba6f7}
+.chunk.highlight{background:rgba(166,227,161,.25);border-bottom-color:#a6e3a1}
+.chunk-controls{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap}
+.chunk-controls label{font-size:.8rem;color:#a6adc8}
+input[type=range]{-webkit-appearance:none;height:6px;border-radius:3px;outline:none;background:#45475a}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#f9e2af;cursor:pointer}
+
+/* Compare panel */
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+.compare-card{background:#181825;border-radius:10px;padding:.8rem;border:1px solid #45475a}
+.compare-card h3{margin-bottom:.5rem;font-size:.95rem}
+.compare-card.rag-card{border-color:#a6e3a1}.compare-card.rag-card h3{color:#a6e3a1}
+.compare-card.ft-card{border-color:#cba6f7}.compare-card.ft-card h3{color:#cba6f7}
+.compare-item{font-size:.8rem;padding:.3rem 0;border-bottom:1px solid rgba(69,71,90,.5);display:flex;gap:.4rem;align-items:flex-start}
+.compare-item:last-child{border:none}
+.pro{color:#a6e3a1}.con{color:#f38ba8}
+
+footer{text-align:center;padding:1rem;color:#585b70;font-size:.75rem;border-top:1px solid #313244}
+
+@media(max-width:700px){
+  .chat-area{flex-direction:column-reverse}
+  .kb-sidebar{width:100%;max-height:200px}
+  .compare-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<h1>RAG: Giving AI a Library Card</h1>
+<p class="subtitle">Real Example: Asking questions no LLM can answer from training alone</p>
+
+<main>
+<!-- Chat Demo -->
+<div class="section">
+  <h2>Chat Demo: With vs Without RAG</h2>
+  <div class="toggle-row">
+    <button class="toggle-btn active-off" id="togOff" onclick="setMode(false)">&#10060; Without RAG</button>
+    <button class="toggle-btn" id="togOn" onclick="setMode(true)">&#9989; With RAG</button>
+  </div>
+
+  <div class="steps-row" id="stepsRow">
+    <div class="step-box" id="step1"><span class="step-icon">&#128172;</span>Question</div>
+    <div class="step-arrow">&#8594;</div>
+    <div class="step-box" id="step2"><span class="step-icon">&#128269;</span>Document Search</div>
+    <div class="step-arrow">&#8594;</div>
+    <div class="step-box" id="step3"><span class="step-icon">&#128196;</span>Retrieve Docs</div>
+    <div class="step-arrow">&#8594;</div>
+    <div class="step-box" id="step4"><span class="step-icon">&#129302;</span>LLM + Context</div>
+    <div class="step-arrow">&#8594;</div>
+    <div class="step-box" id="step5"><span class="step-icon">&#9989;</span>Answer</div>
+  </div>
+
+  <div class="chat-area">
+    <div class="chat-main">
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="chatInput" placeholder="Ask a question (e.g. &quot;What were Apple's Q3 2025 earnings?&quot;)" onkeydown="if(event.key==='Enter')sendMessage()">
+        <button class="chat-send" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+    <div class="kb-sidebar">
+      <h3>&#128218; Knowledge Base</h3>
+      <div id="kbDocs"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Chunk Size -->
+<div class="section">
+  <h2>Chunk Size: How Documents Get Split</h2>
+  <p style="font-size:.85rem;color:#a6adc8;margin-bottom:.4rem">Documents are split into chunks for search. Chunk size affects what gets retrieved:</p>
+  <div class="chunk-controls">
+    <label>Chunk size: <strong id="chunkVal">50</strong> words</label>
+    <input type="range" id="chunkSlider" min="20" max="120" value="50" step="10" style="width:200px">
+    <span style="font-size:.75rem;color:#a6adc8" id="chunkInfo">5 chunks</span>
+  </div>
+  <div class="chunk-doc" id="chunkDoc"></div>
+</div>
+
+<!-- Compare -->
+<div class="section">
+  <h2>RAG vs Fine-Tuning</h2>
+  <div class="compare-grid">
+    <div class="compare-card rag-card">
+      <h3>RAG (Retrieval-Augmented Generation)</h3>
+      <div class="compare-item"><span class="pro">&#9989;</span> No retraining needed</div>
+      <div class="compare-item"><span class="pro">&#9989;</span> Always up to date (add new docs anytime)</div>
+      <div class="compare-item"><span class="pro">&#9989;</span> Cites sources with references</div>
+      <div class="compare-item"><span class="pro">&#9989;</span> Cheap to set up and maintain</div>
+      <div class="compare-item"><span class="pro">&#9989;</span> Knowledge is transparent and auditable</div>
+      <div class="compare-item"><span class="con">&#10060;</span> Slower (retrieval adds latency)</div>
+      <div class="compare-item"><span class="con">&#10060;</span> Limited by retrieval quality</div>
+    </div>
+    <div class="compare-card ft-card">
+      <h3>Fine-Tuning</h3>
+      <div class="compare-item"><span class="pro">&#9989;</span> Knowledge baked into the model</div>
+      <div class="compare-item"><span class="pro">&#9989;</span> Fast inference (no retrieval step)</div>
+      <div class="compare-item"><span class="pro">&#9989;</span> Can learn new styles/behaviors</div>
+      <div class="compare-item"><span class="con">&#10060;</span> Requires retraining for updates</div>
+      <div class="compare-item"><span class="con">&#10060;</span> Can become outdated quickly</div>
+      <div class="compare-item"><span class="con">&#10060;</span> No source citations</div>
+      <div class="compare-item"><span class="con">&#10060;</span> Expensive GPU compute needed</div>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+// Knowledge base
+const docs = [
+  {id:1, title:"Apple Q3 2025 Earnings Report", text:"Apple reported Q3 2025 revenue of $94.8 billion, up 9% year-over-year. iPhone revenue was $42.3B, Services hit a new record of $24.2B. CEO Tim Cook highlighted strong growth in emerging markets and the Apple Intelligence platform.", keywords:["apple","earnings","q3","2025","revenue","iphone","services"]},
+  {id:2, title:"Tesla Cybertruck Recall Notice", text:"Tesla issued a voluntary recall for 45,000 Cybertrucks due to a potential issue with the accelerator pedal cover. The fix involves a software update and physical inspection at service centers.", keywords:["tesla","cybertruck","recall","accelerator","pedal"]},
+  {id:3, title:"Federal Reserve Rate Decision - March 2025", text:"The Federal Reserve held interest rates steady at 4.25-4.50% in March 2025, citing persistent inflation concerns. Chair Powell signaled potential cuts in Q4 2025 if inflation data improves.", keywords:["federal","reserve","rate","interest","inflation","powell","2025"]},
+  {id:4, title:"OpenAI GPT-5 Launch Announcement", text:"OpenAI announced GPT-5 with multimodal capabilities including real-time video understanding. The model shows 40% improvement on reasoning benchmarks. Pricing starts at $30/million tokens for the API.", keywords:["openai","gpt-5","gpt5","launch","multimodal","reasoning","api"]},
+  {id:5, title:"NVIDIA Q2 2025 Financial Results", text:"NVIDIA reported Q2 2025 revenue of $38.5 billion, driven by data center GPU demand. The H200 chip accounted for 60% of data center revenue. The company announced the B300 chip for late 2025.", keywords:["nvidia","revenue","q2","2025","gpu","h200","b300","data center"]},
+  {id:6, title:"EU AI Act Implementation Update", text:"The EU AI Act entered full enforcement in August 2025. High-risk AI systems now require mandatory conformity assessments. Companies face fines up to 7% of global revenue for non-compliance.", keywords:["eu","ai act","regulation","enforcement","compliance","fine"]},
+  {id:7, title:"SpaceX Starship Flight 7 Summary", text:"SpaceX completed Starship Flight 7 successfully, achieving full booster catch and orbital insertion. The mission deployed 15 Starlink V3 satellites. Next flight targets Moon orbit demonstration.", keywords:["spacex","starship","flight","booster","orbit","starlink","moon"]},
+  {id:8, title:"Google DeepMind AlphaFold 3 in Clinical Trials", text:"AlphaFold 3 predictions are being used in 12 active clinical trials for drug discovery. Three cancer drug candidates identified by AlphaFold entered Phase II trials in 2025.", keywords:["google","deepmind","alphafold","clinical","drug","cancer","trial"]},
+  {id:9, title:"Microsoft Copilot Enterprise Adoption Report", text:"Microsoft reported 60% of Fortune 500 companies now use Copilot Enterprise. Average productivity gains of 28% were measured in early adopters. Copilot generated $5.2B in annual recurring revenue.", keywords:["microsoft","copilot","enterprise","productivity","adoption","revenue"]},
+  {id:10, title:"Climate Tech Funding Report Q2 2025", text:"Climate tech startups raised $18.7B in Q2 2025, a 34% increase YoY. Battery technology and carbon capture led the sectors. The largest round was $2.1B for a solid-state battery company.", keywords:["climate","funding","battery","carbon","startup","investment","2025"]}
+];
+
+// Render KB sidebar
+const kbEl = document.getElementById('kbDocs');
+docs.forEach(d => {
+  const div = document.createElement('div');
+  div.className = 'kb-doc';
+  div.id = 'doc-' + d.id;
+  div.innerHTML = `<div class="doc-title">[${d.id}] ${d.title}</div><div class="doc-preview">${d.text.substring(0,80)}...</div>`;
+  kbEl.appendChild(div);
+});
+
+// Mode
+let ragMode = false;
+function setMode(on) {
+  ragMode = on;
+  document.getElementById('togOff').className = 'toggle-btn' + (!on ? ' active-off' : '');
+  document.getElementById('togOn').className = 'toggle-btn' + (on ? ' active-on' : '');
+  clearChat();
+}
+
+function clearChat() {
+  document.getElementById('chatMessages').innerHTML = '';
+  resetSteps();
+  docs.forEach(d => document.getElementById('doc-'+d.id).classList.remove('matched'));
+}
+
+function resetSteps() {
+  for (let i = 1; i <= 5; i++) document.getElementById('step'+i).classList.remove('active');
+}
+
+function activateStep(n) {
+  document.getElementById('step'+n).classList.add('active');
+}
+
+function addMsg(cls, text) {
+  const el = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + cls;
+  div.innerHTML = text;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+// Simple keyword matching
+function findRelevantDocs(query, topN=3) {
+  const q = query.toLowerCase();
+  const scored = docs.map(d => {
+    let score = 0;
+    d.keywords.forEach(k => { if (q.includes(k)) score += 2; });
+    // Also check title words
+    d.title.toLowerCase().split(' ').forEach(w => { if (w.length > 3 && q.includes(w.toLowerCase())) score += 1; });
+    // Partial word matching
+    const qWords = q.split(/\s+/);
+    qWords.forEach(qw => {
+      if (qw.length < 3) return;
+      d.keywords.forEach(k => { if (k.includes(qw) || qw.includes(k)) score += 1; });
+    });
+    return {...d, score};
+  });
+  scored.sort((a,b) => b.score - a.score);
+  return scored.filter(d => d.score > 0).slice(0, topN);
+}
+
+let animating = false;
+async function sendMessage() {
+  if (animating) return;
+  const input = document.getElementById('chatInput');
+  const query = input.value.trim();
+  if (!query) return;
+  input.value = '';
+  animating = true;
+  clearChat();
+
+  addMsg('msg-user', query);
+  activateStep(1);
+
+  if (!ragMode) {
+    await delay(800);
+    activateStep(5);
+    addMsg('msg-ai error', "I don't have information after my training cutoff date. I cannot provide real-time or recent data about that topic. My knowledge was last updated in early 2024, so I may not have the latest information you're looking for. &#10060;");
+    animating = false;
+    return;
+  }
+
+  // RAG flow
+  await delay(600);
+  activateStep(2);
+  addMsg('msg-system', '&#128269; Searching knowledge base...');
+
+  await delay(800);
+  activateStep(3);
+  const matched = findRelevantDocs(query);
+  if (matched.length === 0) {
+    // Fall back to first 2 docs as "best guess"
+    matched.push(docs[0], docs[4]);
+  }
+  matched.forEach(d => {
+    document.getElementById('doc-'+d.id).classList.add('matched');
+    addMsg('msg-doc', `<strong>[Doc ${d.id}] ${d.title}</strong><br>${d.text.substring(0, 120)}...`);
+  });
+
+  await delay(800);
+  activateStep(4);
+  const ctxDocs = matched.map(d => `[Doc ${d.id}]: ${d.text}`).join('\n');
+  addMsg('msg-system', `&#129302; Sending to LLM with context: "${query}" + ${matched.length} retrieved documents`);
+
+  await delay(1000);
+  activateStep(5);
+  // Generate answer from matched docs
+  const citations = matched.map(d => `[Doc ${d.id}]`).join(', ');
+  const snippet = matched[0] ? matched[0].text.substring(0, 150) : 'relevant information';
+  addMsg('msg-ai success', `Based on the retrieved documents, here is what I found:<br><br>${snippet}<br><br><em>Sources: ${citations}</em> &#9989;`);
+  animating = false;
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Pre-fill example
+setTimeout(() => {
+  document.getElementById('chatInput').value = "What were Apple's Q3 2025 earnings?";
+}, 300);
+
+// Chunk size demo
+const longDoc = "Apple Inc. reported its third quarter financial results for fiscal year 2025 on Thursday. The company posted revenue of $94.8 billion, representing a 9% increase compared to the same quarter last year. iPhone revenue came in at $42.3 billion, slightly above analyst expectations. The Services segment hit a new all-time record of $24.2 billion in quarterly revenue, driven by strong App Store sales, Apple Music subscriptions, and the new Apple Intelligence premium tier. CEO Tim Cook highlighted the company's strong performance in emerging markets, particularly India and Southeast Asia, where iPhone sales grew by 35%. The company also announced that Apple Intelligence, its suite of AI features, has been adopted by over 200 million users since its launch. Mac revenue was $8.1 billion, boosted by the M4 chip lineup. iPad revenue reached $7.2 billion following the release of the new iPad Air with M3 chip. Apple's gross margin expanded to 46.8%, up from 45.2% a year ago. The company returned $27 billion to shareholders through dividends and share buybacks during the quarter.";
+
+function renderChunks() {
+  const size = parseInt(document.getElementById('chunkSlider').value);
+  document.getElementById('chunkVal').textContent = size;
+  const words = longDoc.split(' ');
+  const chunks = [];
+  for (let i = 0; i < words.length; i += size) {
+    chunks.push(words.slice(i, i + size).join(' '));
+  }
+  document.getElementById('chunkInfo').textContent = chunks.length + ' chunks';
+  const el = document.getElementById('chunkDoc');
+  el.innerHTML = chunks.map((c, i) => `<span class="chunk" title="Chunk ${i+1}: ${c.split(' ').length} words">${c} </span>`).join('');
+}
+document.getElementById('chunkSlider').addEventListener('input', renderChunks);
+renderChunks();
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 520" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="115%">
+      <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#00000020"/>
+    </filter>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a7a9a"/>
+    </marker>
+  </defs>
+
+  <text x="350" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#4a4a6a">Permission System — Resolution Flow</text>
+
+  <!-- Tool Call Initiated -->
+  <rect x="225" y="55" width="250" height="42" rx="20" fill="#e8eaf6" stroke="#9fa8da" stroke-width="2" filter="url(#shadow)"/>
+  <text x="350" y="81" text-anchor="middle" font-size="13" font-weight="bold" fill="#283593">Tool Call Initiated</text>
+  <line x1="350" y1="97" x2="350" y2="125" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Permission Mode diamond -->
+  <polygon points="350,130 440,175 350,220 260,175" fill="#fff9c4" stroke="#ffd54f" stroke-width="2" filter="url(#shadow)"/>
+  <text x="350" y="172" text-anchor="middle" font-size="12" font-weight="bold" fill="#f57f17">Mode?</text>
+
+  <!-- Bypass branch (left) -->
+  <text x="220" y="155" font-size="11" font-weight="bold" fill="#66bb6a">bypass</text>
+  <line x1="260" y1="175" x2="120" y2="175" stroke="#66bb6a" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="20" y="155" width="100" height="40" rx="12" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="70" y="180" text-anchor="middle" font-size="12" font-weight="bold" fill="#2e7d32">Execute</text>
+
+  <!-- Default/Auto branch (down) -->
+  <text x="360" y="238" font-size="11" font-weight="bold" fill="#42a5f5">default / auto</text>
+  <line x1="350" y1="220" x2="350" y2="265" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Match Rules diamond -->
+  <polygon points="350,270 430,310 350,350 270,310" fill="#f3e5f5" stroke="#ce93d8" stroke-width="2" filter="url(#shadow)"/>
+  <text x="350" y="307" text-anchor="middle" font-size="11" font-weight="bold" fill="#6a1b9a">Match</text>
+  <text x="350" y="321" text-anchor="middle" font-size="11" font-weight="bold" fill="#6a1b9a">Rules?</text>
+
+  <!-- alwaysAllow (left) -->
+  <text x="215" y="295" font-size="10" font-weight="bold" fill="#66bb6a">alwaysAllow</text>
+  <line x1="270" y1="310" x2="120" y2="310" stroke="#66bb6a" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="20" y="290" width="100" height="40" rx="12" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="2"/>
+  <text x="70" y="315" text-anchor="middle" font-size="12" font-weight="bold" fill="#2e7d32">Execute</text>
+
+  <!-- alwaysDeny (right) -->
+  <text x="460" y="295" font-size="10" font-weight="bold" fill="#ef5350">alwaysDeny</text>
+  <line x1="430" y1="310" x2="560" y2="310" stroke="#ef5350" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="565" y="290" width="110" height="40" rx="12" fill="#ffebee" stroke="#ef9a9a" stroke-width="2"/>
+  <text x="620" y="315" text-anchor="middle" font-size="12" font-weight="bold" fill="#c62828">Error</text>
+
+  <!-- No Match (down) -->
+  <text x="360" y="368" font-size="10" font-weight="bold" fill="#ff9800">No match</text>
+  <line x1="350" y1="350" x2="350" y2="390" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Classifier -->
+  <rect x="250" y="395" width="200" height="45" rx="14" fill="#fff3e0" stroke="#ffcc80" stroke-width="2" filter="url(#shadow)"/>
+  <text x="350" y="415" text-anchor="middle" font-size="12" font-weight="bold" fill="#e65100">Classifier</text>
+  <text x="350" y="430" text-anchor="middle" font-size="10" fill="#bf360c">bash / yolo classifier</text>
+
+  <!-- Safe (left from classifier) -->
+  <text x="200" y="415" font-size="10" font-weight="bold" fill="#66bb6a">Safe</text>
+  <line x1="250" y1="418" x2="120" y2="418" stroke="#66bb6a" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="20" y="398" width="100" height="40" rx="12" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="2"/>
+  <text x="70" y="423" text-anchor="middle" font-size="12" font-weight="bold" fill="#2e7d32">Execute</text>
+
+  <!-- Unsafe (down from classifier) -->
+  <text x="360" y="458" font-size="10" font-weight="bold" fill="#ff9800">Unsafe</text>
+  <line x1="350" y1="440" x2="350" y2="470" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- User prompt -->
+  <rect x="245" y="475" width="210" height="40" rx="14" fill="#e1f5fe" stroke="#4fc3f7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="350" y="500" text-anchor="middle" font-size="12" font-weight="bold" fill="#0277bd">Prompt User</text>
+
+  <!-- Approve -->
+  <line x1="245" y1="495" x2="120" y2="495" stroke="#66bb6a" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="170" y="488" font-size="10" font-weight="bold" fill="#66bb6a">Approve</text>
+  <rect x="20" y="475" width="100" height="40" rx="12" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="2"/>
+  <text x="70" y="500" text-anchor="middle" font-size="12" font-weight="bold" fill="#2e7d32">Execute</text>
+
+  <!-- Deny -->
+  <line x1="455" y1="495" x2="565" y2="495" stroke="#ef5350" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="500" y="488" font-size="10" font-weight="bold" fill="#ef5350">Deny</text>
+  <rect x="565" y="475" width="110" height="40" rx="12" fill="#ffebee" stroke="#ef9a9a" stroke-width="2"/>
+  <text x="620" y="500" text-anchor="middle" font-size="12" font-weight="bold" fill="#c62828">Error</text>
+</svg>

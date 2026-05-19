@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learning Rate Scheduling: When to Sprint and When to Walk</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:20px;font-size:1.5rem;color:#cba6f7;letter-spacing:1px}
+.container{display:flex;flex-wrap:wrap;gap:16px;padding:0 20px 20px;flex:1;justify-content:center;align-items:flex-start}
+.charts{flex:1;min-width:400px;max-width:780px;display:flex;flex-direction:column;gap:16px}
+.chart-box{background:#181825;border-radius:12px;border:1px solid #313244;padding:16px;position:relative}
+.chart-box h2{font-size:.95rem;color:#89b4fa;margin-bottom:10px}
+canvas{display:block;width:100%;border-radius:8px}
+.panel{background:#181825;border-radius:12px;border:1px solid #313244;padding:20px;width:300px;display:flex;flex-direction:column;gap:16px}
+.panel h2{font-size:1rem;color:#89b4fa;margin-bottom:4px}
+.controls label{display:flex;justify-content:space-between;align-items:center;font-size:.85rem;margin-bottom:8px}
+.controls input[type=range]{width:150px;accent-color:#cba6f7}
+.checks label{display:flex;align-items:center;gap:8px;font-size:.85rem;margin-bottom:6px;cursor:pointer}
+.checks input[type=checkbox]{accent-color:#cba6f7;width:16px;height:16px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex-shrink:0}
+.analogy{background:#11111b;border-radius:10px;padding:14px;font-size:.82rem;line-height:1.7}
+.analogy strong{color:#f9e2af}
+.analogy em{color:#a6e3a1;font-style:normal}
+footer{text-align:center;padding:16px;font-size:.75rem;color:#585b70;border-top:1px solid #313244}
+@media(max-width:800px){.container{flex-direction:column;align-items:center}.panel{width:100%;max-width:500px}.charts{max-width:100%}}
+</style>
+</head>
+<body>
+<h1>Learning Rate Scheduling: When to Sprint and When to Walk</h1>
+<div class="container">
+  <div class="charts">
+    <div class="chart-box">
+      <h2>Learning Rate vs Training Step</h2>
+      <canvas id="lrCanvas" height="300"></canvas>
+    </div>
+    <div class="chart-box">
+      <h2>Simulated Training Loss (lower is better)</h2>
+      <canvas id="lossCanvas" height="220"></canvas>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Schedules</h2>
+    <div class="checks">
+      <label><input type="checkbox" id="chkConst" checked><span class="dot" style="background:#f38ba8"></span> Constant</label>
+      <label><input type="checkbox" id="chkCosine" checked><span class="dot" style="background:#89b4fa"></span> Cosine Decay</label>
+      <label><input type="checkbox" id="chkWarmCos" checked><span class="dot" style="background:#a6e3a1"></span> Warmup + Cosine</label>
+      <label><input type="checkbox" id="chkTrap" checked><span class="dot" style="background:#f9e2af"></span> Trapezoidal (ModernBERT)</label>
+    </div>
+    <h2>Parameters</h2>
+    <div class="controls">
+      <label>Max LR <span id="maxLRVal">3e-3</span><input type="range" id="maxLR" min="-5" max="-2" step="0.1" value="-2.52"></label>
+      <label>Warmup Steps <span id="warmVal">10</span><input type="range" id="warm" min="0" max="30" step="1" value="10"></label>
+      <label>Total Steps <span id="totalVal">100</span><input type="range" id="total" min="50" max="500" step="10" value="100"></label>
+    </div>
+    <div class="analogy">
+      <strong>Training is like a race:</strong><br>
+      <em>Warmup</em> = stretching before you run<br>
+      <em>High LR</em> = sprinting (big steps, might stumble)<br>
+      <em>Decay</em> = walking carefully near the finish (fine adjustments)
+    </div>
+  </div>
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const lrCv=document.getElementById('lrCanvas'),lrCtx=lrCv.getContext('2d');
+const lossCv=document.getElementById('lossCanvas'),lossCtx=lossCv.getContext('2d');
+const chkConst=document.getElementById('chkConst'),chkCosine=document.getElementById('chkCosine');
+const chkWarmCos=document.getElementById('chkWarmCos'),chkTrap=document.getElementById('chkTrap');
+const maxLRSlider=document.getElementById('maxLR'),warmSlider=document.getElementById('warm'),totalSlider=document.getElementById('total');
+const maxLRVal=document.getElementById('maxLRVal'),warmVal=document.getElementById('warmVal'),totalVal=document.getElementById('totalVal');
+
+function getParams(){
+  const maxLR=Math.pow(10,parseFloat(maxLRSlider.value));
+  const warmup=parseInt(warmSlider.value);
+  const total=parseInt(totalSlider.value);
+  return{maxLR,warmup,total};
+}
+
+function schedConst(step,p){return p.maxLR;}
+function schedCosine(step,p){return p.maxLR*0.5*(1+Math.cos(Math.PI*step/p.total));}
+function schedWarmCos(step,p){
+  if(step<p.warmup)return p.maxLR*(step/Math.max(p.warmup,1));
+  return p.maxLR*0.5*(1+Math.cos(Math.PI*(step-p.warmup)/(p.total-p.warmup)));
+}
+function schedTrap(step,p){
+  const w=p.warmup;
+  const decay_start=Math.floor(p.total*0.7);
+  if(step<w)return p.maxLR*(step/Math.max(w,1));
+  if(step<decay_start)return p.maxLR;
+  return p.maxLR*(1-(step-decay_start)/(p.total-decay_start));
+}
+
+function simulateLoss(schedFn,p){
+  // Simulate a noisy training loss curve affected by LR schedule
+  const losses=[4.0];
+  let loss=4.0;
+  const seed=schedFn===schedConst?1:schedFn===schedCosine?2:schedFn===schedWarmCos?3:4;
+  function rng(i){return Math.sin(seed*1000+i*7.13)*0.5+0.5;}
+  for(let s=1;s<=p.total;s++){
+    const lr=schedFn(s,p);
+    const progress=lr/p.maxLR;
+    // Higher LR = faster descent but more noise
+    const descent=0.02+0.03*progress;
+    const noise=(rng(s)-0.5)*0.15*progress;
+    loss=Math.max(0.05,loss-descent+noise);
+    losses.push(loss);
+  }
+  return losses;
+}
+
+const colors={const:'#f38ba8',cosine:'#89b4fa',warmcos:'#a6e3a1',trap:'#f9e2af'};
+
+function resizeCanvas(cv){
+  const r=cv.parentElement.getBoundingClientRect();
+  cv.width=Math.round(r.width-32);
+}
+
+function drawLRChart(){
+  resizeCanvas(lrCv);
+  const W=lrCv.width,H=lrCv.height;
+  const c=lrCtx;
+  const p=getParams();
+  c.clearRect(0,0,W,H);
+  c.fillStyle='#11111b';c.fillRect(0,0,W,H);
+
+  const pad={l:60,r:20,t:20,b:35};
+  const cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
+
+  // axes
+  c.strokeStyle='#45475a';c.lineWidth=1;
+  c.beginPath();c.moveTo(pad.l,pad.t);c.lineTo(pad.l,H-pad.b);c.lineTo(W-pad.r,H-pad.b);c.stroke();
+
+  // labels
+  c.fillStyle='#585b70';c.font='11px sans-serif';
+  c.fillText('0',pad.l-10,H-pad.b+14);
+  c.fillText(p.total,W-pad.r-15,H-pad.b+14);
+  c.fillText('Step',pad.l+cw/2-12,H-pad.b+28);
+
+  const maxY=p.maxLR*1.15;
+  c.save();c.translate(12,pad.t+ch/2);c.rotate(-Math.PI/2);
+  c.fillText('Learning Rate',0,0);c.restore();
+
+  // Y ticks
+  for(let i=0;i<=4;i++){
+    const v=maxY*i/4;
+    const y=pad.t+ch-(v/maxY)*ch;
+    c.fillStyle='#585b70';c.fillText(v.toExponential(1),2,y+4);
+    if(i>0){c.strokeStyle='#313244';c.beginPath();c.moveTo(pad.l,y);c.lineTo(W-pad.r,y);c.stroke();}
+  }
+
+  function plotSchedule(fn,color,visible){
+    if(!visible)return;
+    c.strokeStyle=color;c.lineWidth=2.5;c.globalAlpha=0.9;
+    c.beginPath();
+    for(let s=0;s<=p.total;s++){
+      const lr=fn(s,p);
+      const x=pad.l+(s/p.total)*cw;
+      const y=pad.t+ch-(lr/maxY)*ch;
+      s===0?c.moveTo(x,y):c.lineTo(x,y);
+    }
+    c.stroke();c.globalAlpha=1;
+  }
+
+  plotSchedule(schedConst,colors.const,chkConst.checked);
+  plotSchedule(schedCosine,colors.cosine,chkCosine.checked);
+  plotSchedule(schedWarmCos,colors.warmcos,chkWarmCos.checked);
+  plotSchedule(schedTrap,colors.trap,chkTrap.checked);
+
+  // Warmup region
+  if(p.warmup>0){
+    const wx=pad.l+(p.warmup/p.total)*cw;
+    c.strokeStyle='rgba(205,214,244,0.15)';c.setLineDash([4,4]);
+    c.beginPath();c.moveTo(wx,pad.t);c.lineTo(wx,H-pad.b);c.stroke();
+    c.setLineDash([]);
+    c.fillStyle='rgba(205,214,244,0.3)';c.font='10px sans-serif';
+    c.fillText('warmup',wx+3,pad.t+12);
+  }
+}
+
+function drawLossChart(){
+  resizeCanvas(lossCv);
+  const W=lossCv.width,H=lossCv.height;
+  const c=lossCtx;
+  const p=getParams();
+  c.clearRect(0,0,W,H);
+  c.fillStyle='#11111b';c.fillRect(0,0,W,H);
+
+  const pad={l:50,r:20,t:15,b:30};
+  const cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
+
+  c.strokeStyle='#45475a';c.lineWidth=1;
+  c.beginPath();c.moveTo(pad.l,pad.t);c.lineTo(pad.l,H-pad.b);c.lineTo(W-pad.r,H-pad.b);c.stroke();
+  c.fillStyle='#585b70';c.font='11px sans-serif';
+  c.fillText('Step',pad.l+cw/2-12,H-2);
+  c.save();c.translate(10,pad.t+ch/2);c.rotate(-Math.PI/2);c.fillText('Loss',0,0);c.restore();
+
+  const maxLoss=4.5;
+
+  function plotLoss(fn,color,visible){
+    if(!visible)return;
+    const losses=simulateLoss(fn,p);
+    c.strokeStyle=color;c.lineWidth=2;c.globalAlpha=0.85;
+    c.beginPath();
+    for(let s=0;s<=p.total;s++){
+      const x=pad.l+(s/p.total)*cw;
+      const y=pad.t+ch-(losses[s]/maxLoss)*ch;
+      s===0?c.moveTo(x,y):c.lineTo(x,y);
+    }
+    c.stroke();c.globalAlpha=1;
+  }
+
+  plotLoss(schedConst,colors.const,chkConst.checked);
+  plotLoss(schedCosine,colors.cosine,chkCosine.checked);
+  plotLoss(schedWarmCos,colors.warmcos,chkWarmCos.checked);
+  plotLoss(schedTrap,colors.trap,chkTrap.checked);
+}
+
+function drawAll(){drawLRChart();drawLossChart();}
+
+[chkConst,chkCosine,chkWarmCos,chkTrap].forEach(c=>c.addEventListener('change',drawAll));
+maxLRSlider.addEventListener('input',()=>{maxLRVal.textContent=Math.pow(10,parseFloat(maxLRSlider.value)).toExponential(1);drawAll();});
+warmSlider.addEventListener('input',()=>{warmVal.textContent=warmSlider.value;drawAll();});
+totalSlider.addEventListener('input',()=>{totalVal.textContent=totalSlider.value;drawAll();});
+
+window.addEventListener('resize',drawAll);
+drawAll();
+</script>
+</body>
+</html>

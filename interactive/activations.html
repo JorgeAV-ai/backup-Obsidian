@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activation Functions: What Neurons See</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 { color: #89b4fa; font-size: 1.6rem; margin-bottom: 6px; text-align: center; }
+  .subtitle { color: #a6adc8; font-size: 0.88rem; margin-bottom: 18px; text-align: center; max-width: 700px; line-height: 1.5; }
+
+  /* Grid section */
+  .grid-section {
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 12px;
+    padding: 20px;
+    width: 100%;
+    max-width: 900px;
+    margin-bottom: 22px;
+  }
+  .grid-section-title {
+    font-size: 1rem;
+    color: #cba6f7;
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .grid-controls {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .grid-controls label { color: #a6adc8; font-size: 0.88rem; font-weight: 600; }
+  .grid-controls select {
+    background: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .grid-controls select:focus { outline: 1px solid #89b4fa; }
+  .btn-shuffle {
+    background: #45475a;
+    color: #cdd6f4;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-shuffle:hover { background: #585b70; }
+
+  .grids-row {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .grid-panel { text-align: center; }
+  .grid-panel-label {
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .grid-panel-label.input { color: #f9e2af; }
+  .grid-panel-label.output { color: #a6e3a1; }
+
+  .pixel-grid {
+    display: inline-grid;
+    grid-template-columns: repeat(5, 52px);
+    grid-template-rows: repeat(5, 42px);
+    gap: 3px;
+  }
+  .pixel-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: default;
+    position: relative;
+    transition: background-color 0.25s;
+  }
+  .pixel-cell .dead-marker {
+    position: absolute;
+    top: 1px;
+    right: 3px;
+    font-size: 0.65rem;
+    opacity: 0.8;
+  }
+
+  .grid-stats {
+    text-align: center;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    min-height: 28px;
+  }
+  .grid-stats .stat-relu { color: #f38ba8; }
+  .grid-stats .stat-gelu { color: #a6e3a1; }
+  .grid-stats .stat-info { color: #89b4fa; }
+
+  /* Hover tooltip */
+  .hover-tooltip {
+    background: #11111b;
+    border: 1px solid #45475a;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    text-align: center;
+    margin-top: 12px;
+    min-height: 36px;
+    color: #a6adc8;
+  }
+  .hover-tooltip .fn-name { font-weight: 700; }
+
+  /* Plot section */
+  .plot-section {
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 12px;
+    padding: 20px;
+    width: 100%;
+    max-width: 900px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+  }
+  .canvas-wrap {
+    flex: 1 1 550px;
+    max-width: 700px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .plot-title {
+    font-size: 1rem;
+    color: #cba6f7;
+    font-weight: 700;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  canvas {
+    border-radius: 8px;
+    background: #11111b;
+    width: 100%;
+    cursor: crosshair;
+  }
+  .sidebar {
+    flex: 1 1 200px;
+    max-width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .section-label {
+    color: #cba6f7;
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+  }
+  .fn-list { display: flex; flex-direction: column; gap: 5px; }
+  .fn-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .fn-item:hover { background: #313244; }
+  .fn-item input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; }
+  .fn-swatch { width: 18px; height: 3px; border-radius: 2px; }
+  .fn-label { font-size: 0.82rem; flex: 1; }
+
+  .deriv-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: #11111b;
+    border-radius: 8px;
+  }
+  .deriv-toggle input { accent-color: #a6e3a1; width: 15px; height: 15px; cursor: pointer; }
+  .deriv-toggle label { font-size: 0.82rem; cursor: pointer; }
+
+  .hover-info {
+    background: #11111b;
+    border: 1px solid #313244;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    line-height: 1.55;
+    min-height: 50px;
+  }
+  .hover-info .x-label { color: #f9e2af; margin-bottom: 4px; }
+  .hover-info .fn-val { margin: 1px 0; }
+
+  footer {
+    margin-top: 24px;
+    color: #585b70;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+
+  @media (max-width: 640px) {
+    .pixel-grid {
+      grid-template-columns: repeat(5, 44px);
+      grid-template-rows: repeat(5, 36px);
+    }
+    .pixel-cell { font-size: 0.68rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Activation Functions: What Neurons See</h1>
+<p class="subtitle">See how different activation functions transform a 5x5 feature map. Negative values get treated very differently depending on the function &mdash; this matters for what information survives.</p>
+
+<!-- GRID VISUALIZATION -->
+<div class="grid-section">
+  <div class="grid-section-title">Feature Map Transformation (5x5 pixel grid)</div>
+  <div class="grid-controls">
+    <label for="fnSelect">Activation:</label>
+    <select id="fnSelect">
+      <option value="relu">ReLU</option>
+      <option value="gelu">GELU</option>
+      <option value="leaky">Leaky ReLU (a=0.01)</option>
+      <option value="sigmoid">Sigmoid</option>
+    </select>
+    <button class="btn-shuffle" id="shuffleBtn">Shuffle Values</button>
+  </div>
+
+  <div class="grids-row">
+    <div class="grid-panel">
+      <div class="grid-panel-label input">Input Feature Map</div>
+      <div class="pixel-grid" id="inputGrid"></div>
+    </div>
+    <div class="grid-panel">
+      <div class="grid-panel-label output">Output (after activation)</div>
+      <div class="pixel-grid" id="outputGrid"></div>
+    </div>
+  </div>
+
+  <div class="grid-stats" id="gridStats"></div>
+  <div class="hover-tooltip" id="hoverTooltip">Hover over any pixel to compare all activations</div>
+</div>
+
+<!-- MATHEMATICAL PLOT -->
+<div class="plot-section">
+  <div class="canvas-wrap">
+    <div class="plot-title">Mathematical View</div>
+    <canvas id="plotCanvas" width="640" height="400"></canvas>
+  </div>
+  <div class="sidebar">
+    <div>
+      <div class="section-label">Show on plot</div>
+      <div class="fn-list" id="fnList"></div>
+    </div>
+    <div class="deriv-toggle">
+      <input type="checkbox" id="showDeriv">
+      <label for="showDeriv">Show derivatives (dashed)</label>
+    </div>
+    <div>
+      <div class="section-label">Values at cursor</div>
+      <div class="hover-info" id="hoverInfo">
+        <div class="x-label">Hover over the plot</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+(function() {
+
+// ========================
+// ACTIVATION FUNCTIONS
+// ========================
+function erf(x) {
+  const sign = x >= 0 ? 1 : -1;
+  x = Math.abs(x);
+  const t = 1 / (1 + 0.3275911 * x);
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return sign * y;
+}
+
+const ACT = {
+  relu:    x => Math.max(0, x),
+  gelu:    x => 0.5 * x * (1 + erf(x / Math.SQRT2)),
+  leaky:   x => x >= 0 ? x : 0.01 * x,
+  sigmoid: x => 1 / (1 + Math.exp(-x)),
+};
+
+const ACT_DERIV = {
+  relu:    x => x > 0 ? 1 : 0,
+  gelu:    x => { const c = 0.5*(1+erf(x/Math.SQRT2)); const p = Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI); return c + x*p; },
+  leaky:   x => x >= 0 ? 1 : 0.01,
+  sigmoid: x => { const s = 1/(1+Math.exp(-x)); return s*(1-s); },
+};
+
+const PLOT_FUNCTIONS = [
+  { name: 'ReLU',       key: 'relu',    color: '#f38ba8', active: true,  formula: 'f(x) = max(0, x)' },
+  { name: 'GELU',       key: 'gelu',    color: '#a6e3a1', active: true,  formula: 'f(x) = 0.5x(1+erf(x/sqrt(2)))' },
+  { name: 'Leaky ReLU', key: 'leaky',   color: '#fab387', active: true,  formula: 'f(x) = max(0.01x, x)' },
+  { name: 'Sigmoid',    key: 'sigmoid',  color: '#89b4fa', active: true,  formula: 'f(x) = 1/(1+e^(-x))' },
+  { name: 'Tanh',       key: 'tanh',     color: '#cba6f7', active: false, formula: 'f(x) = tanh(x)',
+    fn: x => Math.tanh(x), deriv: x => { const t = Math.tanh(x); return 1-t*t; } },
+  { name: 'SiLU/Swish', key: 'silu',     color: '#f9e2af', active: false, formula: 'f(x) = x*sigmoid(x)',
+    fn: x => x/(1+Math.exp(-x)), deriv: x => { const s=1/(1+Math.exp(-x)); return s+x*s*(1-s); } },
+];
+
+// ========================
+// 5x5 GRID DATA
+// ========================
+let gridValues = [];
+
+function generateGrid() {
+  gridValues = [];
+  for (let i = 0; i < 25; i++) {
+    // Values from -3 to +3 with 1 decimal
+    gridValues.push(Math.round((Math.random() * 6 - 3) * 10) / 10);
+  }
+}
+
+// Seed a deterministic initial grid
+gridValues = [
+  -2.1, 1.5, -0.3, 2.8, -1.7,
+   0.4, -1.3, 2.2, -0.8, 1.0,
+  -2.5, 0.0, -1.1, 3.0, -0.5,
+   1.8, -0.2, -2.7, 0.6, 1.4,
+  -1.9, 2.5, 0.3, -1.5, -0.1
+];
+
+function getCellColor(val, isOutput, fnKey) {
+  if (isOutput && fnKey === 'relu' && val === 0) {
+    return '#1a1a2e'; // dead black
+  }
+  if (val > 0) {
+    const intensity = Math.min(val / 3, 1);
+    const r = Math.round(30 + (0) * intensity);
+    const g = Math.round(30 + (180) * intensity);
+    const b = Math.round(30 + (60) * intensity);
+    return `rgb(${r},${g},${b})`;
+  } else if (val < 0) {
+    const intensity = Math.min(Math.abs(val) / 3, 1);
+    const r = Math.round(30 + (180) * intensity);
+    const g = Math.round(30 + (0) * intensity);
+    const b = Math.round(30 + (20) * intensity);
+    return `rgb(${r},${g},${b})`;
+  }
+  return '#1e1e2e'; // zero = near-black
+}
+
+function getTextColor(val) {
+  return Math.abs(val) > 1.5 ? '#fff' : '#cdd6f4';
+}
+
+function renderGrids() {
+  const fnKey = document.getElementById('fnSelect').value;
+  const fn = ACT[fnKey];
+  const inputGrid = document.getElementById('inputGrid');
+  const outputGrid = document.getElementById('outputGrid');
+  inputGrid.innerHTML = '';
+  outputGrid.innerHTML = '';
+
+  let deadCount = 0;
+  let partialNeg = 0;
+  let negCount = 0;
+
+  gridValues.forEach((val, i) => {
+    // Input cell
+    const inCell = document.createElement('div');
+    inCell.className = 'pixel-cell';
+    inCell.style.backgroundColor = getCellColor(val, false, '');
+    inCell.style.color = getTextColor(val);
+    inCell.textContent = val.toFixed(1);
+    inCell.addEventListener('mouseenter', () => showPixelTooltip(val));
+    inCell.addEventListener('mouseleave', hidePixelTooltip);
+    inputGrid.appendChild(inCell);
+
+    // Output cell
+    const outVal = fn(val);
+    const outCell = document.createElement('div');
+    outCell.className = 'pixel-cell';
+    outCell.style.backgroundColor = getCellColor(outVal, true, fnKey);
+    outCell.style.color = getTextColor(outVal);
+
+    // Format display value
+    let displayVal = Math.abs(outVal) < 0.005 ? '0.0' : outVal.toFixed(1);
+    outCell.textContent = displayVal;
+    outCell.addEventListener('mouseenter', () => showPixelTooltip(val));
+    outCell.addEventListener('mouseleave', hidePixelTooltip);
+
+    // ReLU dead marker
+    if (fnKey === 'relu' && val < 0) {
+      const marker = document.createElement('span');
+      marker.className = 'dead-marker';
+      marker.textContent = '\u2620\uFE0F';
+      outCell.appendChild(marker);
+      deadCount++;
+    }
+
+    if (val < 0) negCount++;
+
+    // GELU partial negatives
+    if (fnKey === 'gelu' && val < 0 && Math.abs(outVal) > 0.001) {
+      partialNeg++;
+    }
+
+    outputGrid.appendChild(outCell);
+  });
+
+  // Stats
+  const statsEl = document.getElementById('gridStats');
+  if (fnKey === 'relu') {
+    const pct = Math.round(deadCount / 25 * 100);
+    statsEl.innerHTML = `<span class="stat-relu">ReLU killed ${deadCount}/25 pixels (${pct}% information lost) \u2620\uFE0F</span>`;
+  } else if (fnKey === 'gelu') {
+    statsEl.innerHTML = `<span class="stat-gelu">GELU kept partial info for ${partialNeg} negative pixels &mdash; small negatives survive!</span>`;
+  } else if (fnKey === 'leaky') {
+    statsEl.innerHTML = `<span class="stat-info">Leaky ReLU: all ${negCount} negative pixels scaled to 1% &mdash; nothing completely dies</span>`;
+  } else if (fnKey === 'sigmoid') {
+    statsEl.innerHTML = `<span class="stat-info">Sigmoid: all values squeezed into (0, 1) &mdash; negatives become small positives</span>`;
+  }
+}
+
+function showPixelTooltip(inputVal) {
+  const tip = document.getElementById('hoverTooltip');
+  const rVal = ACT.relu(inputVal);
+  const gVal = ACT.gelu(inputVal);
+  const lVal = ACT.leaky(inputVal);
+  const sVal = ACT.sigmoid(inputVal);
+  tip.innerHTML =
+    `Input: <strong>${inputVal.toFixed(1)}</strong> &rarr; ` +
+    `<span class="fn-name" style="color:#f38ba8">ReLU: ${rVal.toFixed(2)}</span> | ` +
+    `<span class="fn-name" style="color:#a6e3a1">GELU: ${gVal.toFixed(2)}</span> | ` +
+    `<span class="fn-name" style="color:#fab387">Leaky: ${lVal.toFixed(2)}</span> | ` +
+    `<span class="fn-name" style="color:#89b4fa">Sigmoid: ${sVal.toFixed(2)}</span>`;
+}
+
+function hidePixelTooltip() {
+  document.getElementById('hoverTooltip').innerHTML = 'Hover over any pixel to compare all activations';
+}
+
+// ========================
+// PLOT (mathematical view)
+// ========================
+const canvas = document.getElementById('plotCanvas');
+const ctx = canvas.getContext('2d');
+const showDerivCb = document.getElementById('showDeriv');
+
+const xMin = -5, xMax = 5, yMin = -2, yMax = 4;
+
+function toCanvasX(x) { return (x - xMin) / (xMax - xMin) * canvas.width; }
+function toCanvasY(y) { return canvas.height - (y - yMin) / (yMax - yMin) * canvas.height; }
+function fromCanvasX(cx) { return xMin + cx / canvas.width * (xMax - xMin); }
+
+function drawGrid() {
+  ctx.strokeStyle = '#313244';
+  ctx.lineWidth = 1;
+  ctx.font = '11px monospace';
+  ctx.fillStyle = '#585b70';
+  ctx.textAlign = 'center';
+
+  for (let x = Math.ceil(xMin); x <= xMax; x++) {
+    const cx = toCanvasX(x);
+    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
+    if (x !== 0) ctx.fillText(x, cx, toCanvasY(0) + 14);
+  }
+  ctx.textAlign = 'right';
+  for (let y = Math.ceil(yMin); y <= yMax; y++) {
+    const cy = toCanvasY(y);
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
+    if (y !== 0) ctx.fillText(y, toCanvasX(0) - 6, cy + 4);
+  }
+  ctx.strokeStyle = '#585b70';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(toCanvasX(0), 0); ctx.lineTo(toCanvasX(0), canvas.height); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, toCanvasY(0)); ctx.lineTo(canvas.width, toCanvasY(0)); ctx.stroke();
+}
+
+function plotFunction(fn, color, dash, lw) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw || 2;
+  ctx.setLineDash(dash || []);
+  ctx.beginPath();
+  const step = (xMax - xMin) / canvas.width;
+  let started = false;
+  for (let x = xMin; x <= xMax; x += step) {
+    const y = fn(x);
+    if (!isFinite(y) || Math.abs(y) > 100) { started = false; continue; }
+    const cx = toCanvasX(x);
+    const cy = toCanvasY(y);
+    if (!started) { ctx.moveTo(cx, cy); started = true; }
+    else ctx.lineTo(cx, cy);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+let mouseX = null;
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - rect.left) / rect.width * canvas.width;
+});
+canvas.addEventListener('mouseleave', () => { mouseX = null; });
+
+function getFn(pf) {
+  if (pf.fn) return pf.fn;
+  return ACT[pf.key];
+}
+function getDeriv(pf) {
+  if (pf.deriv) return pf.deriv;
+  return ACT_DERIV[pf.key];
+}
+
+function drawPlot() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+
+  const showDeriv = showDerivCb.checked;
+
+  PLOT_FUNCTIONS.forEach(pf => {
+    if (!pf.active) return;
+    const fn = getFn(pf);
+    if (!fn) return;
+    plotFunction(fn, pf.color, [], 2.5);
+    if (showDeriv) {
+      const d = getDeriv(pf);
+      if (d) plotFunction(d, pf.color, [6, 4], 1.5);
+    }
+  });
+
+  // Hover line
+  if (mouseX !== null) {
+    const x = fromCanvasX(mouseX);
+    ctx.strokeStyle = '#585b70';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(mouseX, 0); ctx.lineTo(mouseX, canvas.height); ctx.stroke();
+    ctx.setLineDash([]);
+
+    let html = `<div class="x-label">x = ${x.toFixed(3)}</div>`;
+    PLOT_FUNCTIONS.forEach(pf => {
+      if (!pf.active) return;
+      const fn = getFn(pf);
+      if (!fn) return;
+      const y = fn(x);
+      const cy = toCanvasY(y);
+      ctx.beginPath(); ctx.arc(mouseX, cy, 5, 0, 2*Math.PI);
+      ctx.fillStyle = pf.color; ctx.fill();
+      ctx.strokeStyle = '#1e1e2e'; ctx.lineWidth = 1.5; ctx.stroke();
+
+      let line = `<div class="fn-val" style="color:${pf.color}">${pf.name}: ${y.toFixed(4)}`;
+      if (showDeriv) {
+        const d = getDeriv(pf);
+        if (d) line += ` | f'=${d(x).toFixed(4)}`;
+      }
+      line += '</div>';
+      html += line;
+    });
+    document.getElementById('hoverInfo').innerHTML = html;
+  }
+
+  requestAnimationFrame(drawPlot);
+}
+
+// Build function list checkboxes
+const fnListEl = document.getElementById('fnList');
+PLOT_FUNCTIONS.forEach((pf, idx) => {
+  const item = document.createElement('div');
+  item.className = 'fn-item';
+  item.innerHTML = `
+    <input type="checkbox" ${pf.active ? 'checked' : ''} style="accent-color:${pf.color}">
+    <div class="fn-swatch" style="background:${pf.color}"></div>
+    <span class="fn-label">${pf.name}</span>
+  `;
+  item.addEventListener('click', e => {
+    if (e.target.tagName !== 'INPUT') {
+      const cb = item.querySelector('input');
+      cb.checked = !cb.checked;
+    }
+    PLOT_FUNCTIONS[idx].active = item.querySelector('input').checked;
+  });
+  fnListEl.appendChild(item);
+});
+
+// Grid events
+document.getElementById('fnSelect').addEventListener('change', renderGrids);
+document.getElementById('shuffleBtn').addEventListener('click', () => {
+  generateGrid();
+  renderGrids();
+});
+
+// Handle canvas resize
+function resizeCanvas() {
+  const wrap = canvas.parentElement;
+  const w = wrap.clientWidth - 10;
+  if (w > 300) {
+    canvas.width = Math.min(w, 700);
+    canvas.height = Math.round(canvas.width * 0.625);
+  }
+}
+window.addEventListener('resize', () => { resizeCanvas(); renderGrids(); });
+
+// Init
+resizeCanvas();
+renderGrids();
+drawPlot();
+
+})();
+</script>
+</body>
+</html>

@@ -56,7 +56,7 @@ The main failure mode is not rounding by itself but what rounding does when a te
 
 Once that happens, the ordinary values in the center of the distribution lose useful resolution. Instead of being mapped to many distinct levels, they collapse into a much smaller number of buckets. In effect, the outlier forces the entire tensor to pay for its range. This is why the green `Δ` in the formula matters so much: when `Δ` becomes too large, the grid becomes too coarse for the bulk of the data.
 
-The same idea extends beyond static weights. Large models can also develop massive activations, including token-specific spikes that behave like attention sinks. These are not harmless edge cases. They create exactly the kind of disproportionate scale problem that naive quantization handles badly [2][5][7].
+The same idea extends beyond static weights. Large models can also develop massive activations, including token-specific spikes that behave like attention sinks. These are not harmless edge cases. They create exactly the kind of disproportionate scale problem that naive quantization handles badly [2] [5] [7].
 
 As models grow, these pathologies become more structural. Large transformers develop outlier channels, token-level activation spikes, and behaviors that make naive quantization much less reliable. The problem is therefore not just “more parameters means more rounding error.” The problem is that larger models develop numerical geometry that is harder to compress with one crude global rule [2][3].
 
@@ -117,7 +117,7 @@ Recent evaluations suggest that compression can also alter safety and behavioral
 
 The correct stance here is neither denial nor panic. Quantization should be treated as a behavior-changing intervention whose effects need to be measured directly. It is not enough to ask whether the model is smaller and faster; we also need to ask which properties became less stable when resolution was removed.
 
-## 6. Conclusion: Quantization as a Core Design Layer
+## 6. Conclusion: Quantization
 
 Quantization makes large models cheaper to store, easier to move, and more practical to deploy. It is one of the main reasons advanced models can run outside specialized infrastructure. In that sense, quantization is one of the key technologies behind the broader accessibility of modern LLMs: without it, many models would remain trapped behind hardware budgets that only a small number of users or organizations could absorb.
 
@@ -131,15 +131,9 @@ That is why quantization should be understood as a core design layer rather than
 
 ## Bibliography
 
-Primary sources and official implementation references used for this explainer.
-
-### Foundations
-
 [1] Jacob et al. (2018). [Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference](https://arxiv.org/abs/1712.05877). Foundational reference for scale / zero-point quantization and quantization-aware training.
 [2] Dettmers et al. (2022). [LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale](https://arxiv.org/abs/2208.07339). Core reference for transformer outliers and why naive low-bit compression fails differently at scale.
 [3] Gong et al. (2024). [What Makes Quantization for Large Language Models Hard? An Empirical Study from the Lens of Perturbation](https://arxiv.org/abs/2403.06408). Useful reference for understanding quantization error as structured perturbation rather than generic noise.
-
-### Methods and formats
 
 [4] Frantar et al. (2022). [GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers](https://arxiv.org/abs/2210.17323). Primary source for second-order post-training quantization in GPT-style models.
 [5] Xiao et al. (2023). [SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models](https://arxiv.org/abs/2211.10438). Key reference for handling activation outliers in weight-and-activation quantization.
@@ -150,9 +144,6 @@ Primary sources and official implementation references used for this explainer.
 [10] turboderp-org. [ExLlamaV2 README and EXL2 quantization notes](https://github.com/turboderp-org/exllamav2). Primary implementation reference for EXL2's mixed-bitrate local GPU workflow.
 [11] Liu et al. (2023). [LLM-QAT: Data-Free Quantization Aware Training for Large Language Models](https://arxiv.org/abs/2305.17888). Early LLM-specific QAT reference, especially relevant below 8-bit precision.
 [12] Chen et al. (2024). [EfficientQAT: Efficient Quantization-Aware Training for Large Language Models](https://arxiv.org/abs/2407.11062). More recent LLM-QAT work focused on practical low-bit training efficiency.
-
-### Evaluation, trade-offs, and failure modes
-
 [13] Jin et al. (2024). [A Comprehensive Evaluation of Quantization Strategies for Large Language Models](https://arxiv.org/abs/2402.16775). Broad evaluation framework covering capability, alignment, and efficiency.
 [14] Lee et al. (2024). [Exploring the Trade-Offs: Quantization Methods, Task Difficulty, and Model Size in Large Language Models From Edge to Giant](https://arxiv.org/abs/2409.11055). Large-scale comparison across models, quantizers, and benchmark families.
 [15] Li et al. (2025). [Quantization Meets Reasoning: Exploring LLM Low-Bit Quantization Degradation for Mathematical Reasoning](https://arxiv.org/abs/2501.03035). Direct evidence for reasoning degradation under aggressive low-bit quantization.

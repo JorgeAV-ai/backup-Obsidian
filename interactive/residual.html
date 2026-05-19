@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Residual Connections: The Highway for Information</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.6;
+  }
+  header { text-align: center; padding: 2rem 1rem 1rem; border-bottom: 1px solid #313244; }
+  header h1 { font-size: 1.8rem; color: #cba6f7; margin-bottom: 0.3rem; }
+  header p { color: #a6adc8; font-size: 0.95rem; }
+  main { flex: 1; max-width: 1100px; width: 100%; margin: 0 auto; padding: 1.5rem 1rem; }
+  footer { text-align: center; padding: 1rem; border-top: 1px solid #313244; color: #585b70; font-size: 0.8rem; }
+  .card { background: #181825; border: 1px solid #313244; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
+  .card h2 { font-size: 1.15rem; color: #89b4fa; margin-bottom: 0.75rem; }
+  .controls { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1rem; }
+  .control-group { display: flex; flex-direction: column; gap: 0.3rem; }
+  .control-group label { font-size: 0.85rem; color: #a6adc8; }
+  .control-group label span { color: #cba6f7; font-weight: 600; font-family: monospace; }
+  input[type=range] {
+    -webkit-appearance: none; width: 200px; height: 6px; background: #313244; border-radius: 3px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; background: #cba6f7; border-radius: 50%; cursor: pointer;
+  }
+  .toggle-group { display: flex; gap: 0.5rem; }
+  .toggle-btn {
+    background: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px;
+    padding: 0.5rem 1rem; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
+  }
+  .toggle-btn.active { background: #cba6f7; color: #1e1e2e; border-color: #cba6f7; }
+  .toggle-btn.active-red { background: #f38ba8; color: #1e1e2e; border-color: #f38ba8; }
+  .anim-btn {
+    background: #a6e3a1; color: #1e1e2e; border: none; border-radius: 8px;
+    padding: 0.5rem 1.2rem; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+    transition: all 0.2s;
+  }
+  .anim-btn:hover { filter: brightness(1.1); }
+  .anim-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .network-area {
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 1rem 0;
+  }
+  .network-col { display: flex; flex-direction: column; align-items: center; }
+  .network-col h3 { font-size: 0.95rem; color: #a6adc8; margin-bottom: 0.75rem; }
+
+  .network-visual {
+    position: relative;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .layers-stack {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 0;
+    position: relative;
+  }
+  .layer-box {
+    width: 180px;
+    height: 36px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+    position: relative;
+    transition: all 0.3s;
+    z-index: 1;
+  }
+  .layer-box.input-layer { background: #45475a; color: #cdd6f4; border: 1px solid #585b70; }
+  .layer-box.hidden-layer { background: #313244; color: #bac2de; border: 1px solid #45475a; }
+  .layer-box.output-layer { background: #45475a; color: #cdd6f4; border: 1px solid #585b70; }
+  .layer-connector {
+    width: 2px;
+    height: 8px;
+    background: #45475a;
+    margin: 0 auto;
+  }
+  .skip-arrow {
+    position: absolute;
+    right: -30px;
+    border: 2px solid #f9e2af;
+    border-left: none;
+    border-radius: 0 10px 10px 0;
+    width: 20px;
+    z-index: 0;
+    opacity: 0.6;
+  }
+  .skip-arrow::after {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: -1px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 6px solid #f9e2af;
+  }
+
+  .gradient-bars {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 0;
+    align-items: flex-start;
+  }
+  .grad-row {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    margin-bottom: 8px;
+    gap: 4px;
+  }
+  .grad-bar-track {
+    width: 100px;
+    height: 18px;
+    background: #11111b;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .grad-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease, background 0.5s ease;
+  }
+  .grad-val {
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: #a6adc8;
+    width: 40px;
+  }
+  .warning-badge {
+    display: inline-block;
+    background: #f38ba8;
+    color: #1e1e2e;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    margin-top: 0.5rem;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .healthy-badge {
+    display: inline-block;
+    background: #a6e3a1;
+    color: #1e1e2e;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    margin-top: 0.5rem;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .signal-dot {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    z-index: 10;
+    pointer-events: none;
+    transition: none;
+    box-shadow: 0 0 12px;
+  }
+
+  .explanation {
+    background: #11111b;
+    border: 1px solid #313244;
+    border-radius: 8px;
+    padding: 1rem;
+    font-size: 0.85rem;
+    color: #a6adc8;
+    line-height: 1.7;
+  }
+  .explanation strong { color: #cba6f7; }
+
+  @media (max-width: 700px) {
+    .network-area { flex-direction: column; align-items: center; }
+    .layer-box { width: 140px; font-size: 0.72rem; }
+    input[type=range] { width: 150px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Residual Connections: The Highway for Information</h1>
+  <p>Why deep networks need skip connections to learn effectively</p>
+</header>
+<main>
+  <!-- Controls -->
+  <div class="card">
+    <h2>Controls</h2>
+    <div class="controls">
+      <div class="control-group">
+        <label>Mode:</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active-red" id="btnNoSkip" onclick="setMode(false)">Without Skip Connections</button>
+          <button class="toggle-btn" id="btnSkip" onclick="setMode(true)">With Skip Connections</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Network depth: <span id="depthVal">12</span> layers</label>
+        <input type="range" id="depthSlider" min="2" max="20" step="1" value="12">
+      </div>
+      <div class="control-group">
+        <label>&nbsp;</label>
+        <button class="anim-btn" id="animBtn" onclick="animateSignal()">Animate Signal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Network visualization -->
+  <div class="card">
+    <h2 id="vizTitle">Signal Propagation Without Residual Connections</h2>
+    <div class="network-area" id="networkArea"></div>
+  </div>
+
+  <!-- Explanation -->
+  <div class="card">
+    <h2>What's happening?</h2>
+    <div class="explanation" id="explanation"></div>
+  </div>
+</main>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+let useSkip = false;
+let depth = 12;
+let animating = false;
+
+function setMode(skip) {
+  useSkip = skip;
+  document.getElementById('btnNoSkip').classList.toggle('active-red', !skip);
+  document.getElementById('btnNoSkip').classList.toggle('toggle-btn', true);
+  document.getElementById('btnSkip').classList.toggle('active', skip);
+  render();
+}
+
+document.getElementById('depthSlider').addEventListener('input', (e) => {
+  depth = parseInt(e.target.value);
+  document.getElementById('depthVal').textContent = depth;
+  render();
+});
+
+function getGradients(numLayers, withSkip) {
+  const grads = [];
+  const decay = withSkip ? 0.95 : 0.7;
+  for (let i = 0; i < numLayers; i++) {
+    const layerFromTop = numLayers - 1 - i;
+    grads.push(Math.pow(decay, layerFromTop));
+  }
+  return grads;
+}
+
+function getSignalStrength(numLayers, withSkip) {
+  const strengths = [1.0];
+  const decay = withSkip ? 0.95 : 0.65;
+  for (let i = 1; i <= numLayers; i++) {
+    strengths.push(strengths[i - 1] * decay);
+  }
+  return strengths;
+}
+
+function gradColor(val) {
+  if (val > 0.5) return '#a6e3a1';
+  if (val > 0.2) return '#f9e2af';
+  if (val > 0.05) return '#fab387';
+  return '#f38ba8';
+}
+
+function signalColor(strength) {
+  const r = Math.round(203 + (243 - 203) * (1 - strength));
+  const g = Math.round(166 + (139 - 166) * (1 - strength));
+  const b = Math.round(247 + (168 - 247) * (1 - strength));
+  return `rgb(${r},${g},${b})`;
+}
+
+function render() {
+  const grads = getGradients(depth, useSkip);
+  const signals = getSignalStrength(depth, useSkip);
+
+  document.getElementById('vizTitle').textContent = useSkip
+    ? 'Signal Propagation With Residual Connections'
+    : 'Signal Propagation Without Residual Connections';
+
+  // Build layers HTML
+  let layersHtml = '';
+  // Output
+  layersHtml += `<div class="layer-box output-layer" id="layer-out">Output</div>`;
+  layersHtml += `<div class="layer-connector"></div>`;
+  for (let i = depth - 1; i >= 0; i--) {
+    const strength = signals[i + 1];
+    const alpha = 0.3 + 0.7 * strength;
+    layersHtml += `<div class="layer-box hidden-layer" id="layer-${i}" style="opacity:${alpha}">Layer ${i + 1}</div>`;
+    if (i > 0) layersHtml += `<div class="layer-connector"></div>`;
+  }
+  layersHtml += `<div class="layer-connector"></div>`;
+  layersHtml += `<div class="layer-box input-layer" id="layer-in">Input (Image)</div>`;
+
+  // Skip connection arrows
+  let skipHtml = '';
+  if (useSkip) {
+    // We'll overlay them with CSS after rendering
+  }
+
+  // Gradient bars
+  let gradHtml = '';
+  gradHtml += `<div class="grad-row" style="visibility:hidden"><div class="grad-bar-track"><div class="grad-bar-fill"></div></div><div class="grad-val"></div></div>`;
+  // spacer for output
+  for (let i = depth - 1; i >= 0; i--) {
+    const g = grads[i];
+    const pct = Math.max(g * 100, 1);
+    gradHtml += `<div class="grad-row">
+      <div class="grad-bar-track"><div class="grad-bar-fill" style="width:${pct}%;background:${gradColor(g)}"></div></div>
+      <div class="grad-val">${g < 0.001 ? '~0' : g.toFixed(3)}</div>
+    </div>`;
+  }
+
+  const minGrad = Math.min(...grads);
+  const badge = (!useSkip && minGrad < 0.05)
+    ? `<div class="warning-badge">Vanishing Gradient!</div>`
+    : `<div class="healthy-badge">Gradients Healthy</div>`;
+
+  const html = `
+    <div class="network-col">
+      <h3>Network Layers</h3>
+      <div class="network-visual">
+        <div class="layers-stack" id="layersStack">${layersHtml}</div>
+        ${useSkip ? '<div id="skipOverlay" style="position:relative"></div>' : ''}
+      </div>
+    </div>
+    <div class="network-col">
+      <h3>Gradient Magnitude (backprop)</h3>
+      <div class="gradient-bars">${gradHtml}</div>
+      ${badge}
+    </div>`;
+
+  document.getElementById('networkArea').innerHTML = html;
+
+  // Draw skip connection lines if needed
+  if (useSkip) {
+    drawSkipConnections();
+  }
+
+  renderExplanation();
+}
+
+function drawSkipConnections() {
+  const stack = document.getElementById('layersStack');
+  if (!stack) return;
+  // Add skip arrows as absolutely positioned elements
+  const boxes = stack.querySelectorAll('.layer-box.hidden-layer');
+  boxes.forEach((box) => {
+    const arrow = document.createElement('div');
+    arrow.style.cssText = `
+      position: absolute;
+      right: -24px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: ${box.offsetHeight + 8}px;
+      border: 2px solid #f9e2af;
+      border-left: none;
+      border-radius: 0 8px 8px 0;
+      opacity: 0.5;
+    `;
+    box.style.position = 'relative';
+    box.appendChild(arrow);
+  });
+}
+
+function renderExplanation() {
+  const el = document.getElementById('explanation');
+  if (useSkip) {
+    el.innerHTML = `
+      <strong>With residual connections</strong>, each layer computes: <code>y = F(x) + x</code><br><br>
+      The <strong>+x</strong> is the "skip connection" &mdash; it creates a highway that lets the original signal pass through untouched.
+      Even if F(x) learns nothing useful, the identity mapping preserves information.<br><br>
+      <strong>During backpropagation</strong>, gradients flow through both the layer AND the skip path.
+      The skip path provides a gradient of exactly 1, preventing vanishing gradients even in very deep networks (100+ layers).<br><br>
+      With <strong>${depth} layers</strong>: the gradient at layer 1 is still ~${getGradients(depth, true)[0].toFixed(3)} &mdash; strong enough to learn!
+    `;
+  } else {
+    const minG = getGradients(depth, false)[0];
+    el.innerHTML = `
+      <strong>Without residual connections</strong>, each layer computes: <code>y = F(x)</code><br><br>
+      The signal must pass through every transformation sequentially. Each layer slightly degrades the original information, and by the final layer, the input may be unrecognizable.<br><br>
+      <strong>During backpropagation</strong>, gradients multiply through each layer. If each layer's gradient is less than 1 (e.g., 0.7), after ${depth} layers the gradient becomes 0.7<sup>${depth}</sup> = <strong style="color:#f38ba8">${minG < 0.001 ? '~0' : minG.toFixed(4)}</strong>.<br><br>
+      With <strong>${depth} layers</strong>: the gradient at layer 1 is effectively ${minG < 0.01 ? 'zero' : 'very small'} &mdash; <span style="color:#f38ba8">the early layers cannot learn!</span>
+    `;
+  }
+}
+
+// Animation
+function animateSignal() {
+  if (animating) return;
+  animating = true;
+  document.getElementById('animBtn').disabled = true;
+
+  const stack = document.getElementById('layersStack');
+  const inputBox = document.getElementById('layer-in');
+  if (!inputBox || !stack) { animating = false; document.getElementById('animBtn').disabled = false; return; }
+
+  const dot = document.createElement('div');
+  dot.className = 'signal-dot';
+  dot.style.background = '#cba6f7';
+  dot.style.boxShadow = '0 0 12px #cba6f7';
+  stack.style.position = 'relative';
+  stack.appendChild(dot);
+
+  // Collect positions of all layer boxes (bottom to top visually = input first)
+  const allBoxes = [];
+  allBoxes.push(document.getElementById('layer-in'));
+  for (let i = 0; i < depth; i++) {
+    allBoxes.push(document.getElementById('layer-' + i));
+  }
+  allBoxes.push(document.getElementById('layer-out'));
+
+  const signals = getSignalStrength(depth, useSkip);
+
+  let step = 0;
+  const totalSteps = allBoxes.length;
+  const interval = Math.max(80, 800 / depth);
+
+  function nextStep() {
+    if (step >= totalSteps) {
+      dot.remove();
+      animating = false;
+      document.getElementById('animBtn').disabled = false;
+      return;
+    }
+    const box = allBoxes[step];
+    if (!box) { step++; nextStep(); return; }
+    const stackRect = stack.getBoundingClientRect();
+    const boxRect = box.getBoundingClientRect();
+
+    const x = boxRect.left - stackRect.left + boxRect.width / 2 - 7;
+    const y = boxRect.top - stackRect.top + boxRect.height / 2 - 7;
+    dot.style.left = x + 'px';
+    dot.style.top = y + 'px';
+
+    // Signal strength affects color and size
+    const s = step === 0 ? 1.0 : (step >= totalSteps - 1 ? signals[signals.length - 1] : signals[step]);
+    const size = 8 + 10 * s;
+    dot.style.width = size + 'px';
+    dot.style.height = size + 'px';
+    dot.style.borderRadius = '50%';
+
+    if (s > 0.5) {
+      dot.style.background = '#a6e3a1';
+      dot.style.boxShadow = `0 0 ${12 * s}px #a6e3a1`;
+    } else if (s > 0.2) {
+      dot.style.background = '#f9e2af';
+      dot.style.boxShadow = `0 0 ${12 * s}px #f9e2af`;
+    } else {
+      dot.style.background = '#f38ba8';
+      dot.style.boxShadow = `0 0 ${12 * s}px #f38ba8`;
+    }
+
+    // Flash the current layer
+    box.style.transition = 'box-shadow 0.2s';
+    box.style.boxShadow = `0 0 12px ${dot.style.background}`;
+    setTimeout(() => { box.style.boxShadow = 'none'; }, interval * 0.8);
+
+    step++;
+    setTimeout(nextStep, interval);
+  }
+
+  nextStep();
+}
+
+render();
+</script>
+</body>
+</html>

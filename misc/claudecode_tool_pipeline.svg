@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="115%">
+      <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#00000020"/>
+    </filter>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a7a9a"/>
+    </marker>
+  </defs>
+
+  <text x="400" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#4a4a6a">Tool System — Execution Pipeline</text>
+
+  <!-- LLM generates -->
+  <rect x="50" y="65" width="200" height="55" rx="16" fill="#f3e5f5" stroke="#ce93d8" stroke-width="2" filter="url(#shadow)"/>
+  <text x="150" y="88" text-anchor="middle" font-size="12" font-weight="bold" fill="#6a1b9a">LLM generates</text>
+  <text x="150" y="106" text-anchor="middle" font-size="11" fill="#8e24aa">ToolUseBlock (JSON)</text>
+  <line x1="250" y1="92" x2="290" y2="92" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- QueryEngine -->
+  <rect x="295" y="65" width="200" height="55" rx="16" fill="#e8eaf6" stroke="#9fa8da" stroke-width="2" filter="url(#shadow)"/>
+  <text x="395" y="88" text-anchor="middle" font-size="12" font-weight="bold" fill="#283593">QueryEngine</text>
+  <text x="395" y="106" text-anchor="middle" font-size="11" fill="#3949ab">Receives tool_use block</text>
+  <line x1="495" y1="92" x2="535" y2="92" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- validateInput -->
+  <rect x="540" y="65" width="210" height="55" rx="16" fill="#fff3e0" stroke="#ffcc80" stroke-width="2" filter="url(#shadow)"/>
+  <text x="645" y="88" text-anchor="middle" font-size="12" font-weight="bold" fill="#e65100">validateInput()</text>
+  <text x="645" y="106" text-anchor="middle" font-size="11" fill="#bf360c">Zod schema + custom</text>
+
+  <!-- Arrow down from validate -->
+  <line x1="645" y1="120" x2="645" y2="165" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Permission check -->
+  <rect x="520" y="170" width="250" height="65" rx="16" fill="#fce4ec" stroke="#f48fb1" stroke-width="2" filter="url(#shadow)"/>
+  <text x="645" y="195" text-anchor="middle" font-size="12" font-weight="bold" fill="#c62828">checkPermissions()</text>
+  <text x="645" y="215" text-anchor="middle" font-size="11" fill="#d32f2f">bypass | default | auto | plan</text>
+
+  <!-- Arrow down -->
+  <line x1="645" y1="235" x2="645" y2="275" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Tool.call() -->
+  <rect x="530" y="280" width="230" height="60" rx="16" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="645" y="305" text-anchor="middle" font-size="14" font-weight="bold" fill="#2e7d32">Tool.call()</text>
+  <text x="645" y="325" text-anchor="middle" font-size="11" fill="#388e3c">Execution with ToolUseContext</text>
+
+  <!-- Arrow down -->
+  <line x1="645" y1="340" x2="645" y2="375" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Progress + Result -->
+  <rect x="510" y="380" width="270" height="55" rx="16" fill="#e1f5fe" stroke="#4fc3f7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="645" y="403" text-anchor="middle" font-size="12" font-weight="bold" fill="#0277bd">ToolResultBlock</text>
+  <text x="645" y="421" text-anchor="middle" font-size="11" fill="#0288d1">Progress events → UI + Result → LLM</text>
+
+  <!-- Tool catalog (left side) -->
+  <rect x="40" y="170" width="380" height="270" rx="18" fill="#fafafa" stroke="#e0e0e0" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="230" y="200" text-anchor="middle" font-size="14" font-weight="bold" fill="#4a4a6a">Tool Catalog</text>
+
+  <!-- Filesystem tools -->
+  <rect x="60" y="215" width="165" height="90" rx="10" fill="#e3f2fd" stroke="#90caf9" stroke-width="1.5"/>
+  <text x="142" y="237" text-anchor="middle" font-size="11" font-weight="bold" fill="#1565c0">Filesystem</text>
+  <text x="142" y="255" text-anchor="middle" font-size="10" fill="#42a5f5">FileRead · FileWrite</text>
+  <text x="142" y="270" text-anchor="middle" font-size="10" fill="#42a5f5">FileEdit · Glob · Grep</text>
+  <text x="142" y="285" text-anchor="middle" font-size="10" fill="#42a5f5">NotebookEdit</text>
+
+  <!-- Execution tools -->
+  <rect x="240" y="215" width="165" height="90" rx="10" fill="#fff9c4" stroke="#fff176" stroke-width="1.5"/>
+  <text x="322" y="237" text-anchor="middle" font-size="11" font-weight="bold" fill="#f57f17">Execution</text>
+  <text x="322" y="255" text-anchor="middle" font-size="10" fill="#fbc02d">BashTool</text>
+  <text x="322" y="270" text-anchor="middle" font-size="10" fill="#fbc02d">SandboxManager</text>
+  <text x="322" y="285" text-anchor="middle" font-size="10" fill="#fbc02d">LSPTool</text>
+
+  <!-- Agent tools -->
+  <rect x="60" y="320" width="165" height="75" rx="10" fill="#f3e5f5" stroke="#ce93d8" stroke-width="1.5"/>
+  <text x="142" y="342" text-anchor="middle" font-size="11" font-weight="bold" fill="#6a1b9a">Multi-Agent</text>
+  <text x="142" y="360" text-anchor="middle" font-size="10" fill="#ab47bc">AgentTool (sub-agents)</text>
+  <text x="142" y="375" text-anchor="middle" font-size="10" fill="#ab47bc">Task Management</text>
+
+  <!-- Web tools -->
+  <rect x="240" y="320" width="165" height="75" rx="10" fill="#e0f7fa" stroke="#80deea" stroke-width="1.5"/>
+  <text x="322" y="342" text-anchor="middle" font-size="11" font-weight="bold" fill="#00695c">Web &amp; Utility</text>
+  <text x="322" y="360" text-anchor="middle" font-size="10" fill="#26a69a">WebSearch · WebFetch</text>
+  <text x="322" y="375" text-anchor="middle" font-size="10" fill="#26a69a">MCP Tools</text>
+</svg>

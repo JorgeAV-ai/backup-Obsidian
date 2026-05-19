@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dense Retrieval: Semantic Search Engine</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1e1e2e;
+    color: #ffffff;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 6px;
+    background: linear-gradient(135deg, #f9e2af, #fab387, #f38ba8, #cba6f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle {
+    color: #a6adc8;
+    font-size: 0.95rem;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+  .main-container {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 1200px;
+  }
+  .canvas-wrap { position: relative; }
+  canvas {
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 12px;
+    cursor: grab;
+  }
+  canvas:active { cursor: grabbing; }
+  .tooltip {
+    position: absolute;
+    background: #313244;
+    color: #cdd6f4;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 260px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    z-index: 10;
+    border: 1px solid #45475a;
+  }
+  .tooltip.visible { opacity: 1; }
+  .tooltip .topic { font-size: 0.7rem; color: #a6adc8; margin-top: 3px; }
+  .panel {
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 300px;
+    max-width: 380px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .panel h2 {
+    font-size: 1.1rem;
+    color: #cdd6f4;
+    border-bottom: 1px solid #313244;
+    padding-bottom: 8px;
+  }
+  .search-box {
+    display: flex;
+    gap: 8px;
+  }
+  .search-box input {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid #45475a;
+    background: #11111b;
+    color: #cdd6f4;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box input:focus { border-color: #cba6f7; }
+  .search-box input::placeholder { color: #585b70; }
+  .search-box button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #cba6f7;
+    color: #1e1e2e;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .search-box button:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  .preset-queries {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .preset-btn {
+    padding: 6px 12px;
+    border: 1px solid #45475a;
+    border-radius: 20px;
+    background: #11111b;
+    color: #bac2de;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .preset-btn:hover { background: #313244; border-color: #cba6f7; color: #cdd6f4; }
+  .preset-btn.active { background: #cba6f7; color: #1e1e2e; border-color: #cba6f7; font-weight: 600; }
+  .control-group { display: flex; flex-direction: column; gap: 6px; }
+  .control-group label {
+    font-size: 0.85rem;
+    color: #a6adc8;
+    display: flex;
+    justify-content: space-between;
+  }
+  .control-group label span { color: #f9e2af; font-weight: 600; }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #313244;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #cba6f7;
+    cursor: pointer;
+    border: 2px solid #1e1e2e;
+  }
+  .results-section { display: flex; flex-direction: column; gap: 10px; }
+  .results-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .results-header .badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .badge-dense { background: #cba6f7; color: #1e1e2e; }
+  .badge-keyword { background: #fab387; color: #1e1e2e; }
+  .results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .result-item {
+    background: #11111b;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    border-left: 3px solid transparent;
+    transition: all 0.2s;
+  }
+  .result-item.highlighted { border-left-color: #f9e2af; background: #1e1e2e; }
+  .result-item .title { color: #cdd6f4; flex: 1; margin-right: 8px; }
+  .result-item .score { color: #f9e2af; font-weight: 700; font-family: monospace; white-space: nowrap; }
+  .result-item .no-match { color: #585b70; font-style: italic; }
+  .comparison-box {
+    background: #11111b;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.78rem;
+    color: #a6adc8;
+    line-height: 1.6;
+    border: 1px solid #313244;
+  }
+  .comparison-box strong { color: #cdd6f4; }
+  .comparison-box .dense-label { color: #cba6f7; font-weight: 600; }
+  .comparison-box .keyword-label { color: #fab387; font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #bac2de; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .instructions {
+    font-size: 0.8rem;
+    color: #6c7086;
+    line-height: 1.5;
+    padding: 10px;
+    background: #11111b;
+    border-radius: 8px;
+  }
+  footer {
+    margin-top: 24px;
+    color: #585b70;
+    font-size: 0.8rem;
+    padding: 12px;
+  }
+  @media (max-width: 768px) {
+    canvas { width: 100% !important; height: auto !important; }
+    .panel { min-width: 100%; max-width: 100%; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Dense Retrieval: Semantic Search Engine</h1>
+<p class="subtitle">Type a real query and see how semantic search finds relevant documents -- even without keyword matches</p>
+
+<div class="main-container">
+  <div class="canvas-wrap">
+    <canvas id="canvas" width="650" height="600"></canvas>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+  <div class="panel">
+    <h2>Search Query</h2>
+    <div class="search-box">
+      <input type="text" id="query-input" placeholder="e.g. how to make bread..." />
+      <button id="btn-search">Search</button>
+    </div>
+
+    <div class="preset-queries">
+      <button class="preset-btn" data-query="bread recipes">&#x1F35E; bread recipes</button>
+      <button class="preset-btn" data-query="mountain hiking">&#x1F3D4; mountain hiking</button>
+      <button class="preset-btn" data-query="machine learning">&#x1F916; machine learning</button>
+      <button class="preset-btn" data-query="Italian food">&#x1F35D; Italian food</button>
+    </div>
+
+    <div class="control-group">
+      <label>Top-K <span id="topk-val">5</span></label>
+      <input type="range" id="topk" min="1" max="10" step="1" value="5">
+    </div>
+
+    <div class="results-section">
+      <div class="results-header">
+        <h2 style="border:none;padding:0;margin:0;">Dense Retrieval</h2>
+        <span class="badge badge-dense">Semantic</span>
+      </div>
+      <div class="results-list" id="dense-results"></div>
+    </div>
+
+    <div class="results-section">
+      <div class="results-header">
+        <h2 style="border:none;padding:0;margin:0;">Keyword Search (BM25)</h2>
+        <span class="badge badge-keyword">Exact Match</span>
+      </div>
+      <div class="results-list" id="keyword-results"></div>
+    </div>
+
+    <div class="comparison-box" id="comparison-box" style="display:none;">
+      <strong>Why the difference?</strong><br>
+      <span class="keyword-label">Keyword search</span> only finds documents containing the exact words in your query.<br>
+      <span class="dense-label">Dense retrieval</span> understands meaning -- it knows "pasta" is related to "cooking" even without shared words.
+    </div>
+
+    <h2>Legend</h2>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#f38ba8"></div>Cooking &amp; Food</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a6e3a1"></div>Outdoors &amp; Nature</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#89b4fa"></div>Tech &amp; AI</div>
+      <div class="legend-item"><svg width="16" height="16" style="flex-shrink:0"><polygon points="8,1 10,6 15,6 11,9 12,14 8,11 4,14 5,9 1,6 6,6" fill="#f9e2af"/></svg>Query</div>
+    </div>
+
+    <div class="instructions">
+      <strong>How it works:</strong><br>
+      1. Type a query or click a preset button.<br>
+      2. The query appears in the embedding space near relevant documents.<br>
+      3. Lines connect to the top-K most similar results.<br>
+      4. Compare dense (semantic) vs keyword (BM25) results below.<br>
+      5. You can also drag the query star manually.
+    </div>
+  </div>
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const tooltipEl = document.getElementById('tooltip');
+const topkSlider = document.getElementById('topk');
+const topkVal = document.getElementById('topk-val');
+const denseResultsList = document.getElementById('dense-results');
+const keywordResultsList = document.getElementById('keyword-results');
+const comparisonBox = document.getElementById('comparison-box');
+const queryInput = document.getElementById('query-input');
+const btnSearch = document.getElementById('btn-search');
+
+const W = canvas.width, H = canvas.height;
+
+// Three clusters in 2D space
+const CLUSTERS = [
+  { name: 'Cooking & Food', color: '#f38ba8', cx: 160, cy: 140 },
+  { name: 'Outdoors & Nature', color: '#a6e3a1', cx: 490, cy: 150 },
+  { name: 'Tech & AI', color: '#89b4fa', cx: 320, cy: 460 },
+];
+
+// Documents with pre-defined positions (semantically clustered)
+const DOCUMENTS = [
+  // Cooking cluster
+  { title: 'How to bake sourdough bread at home', cluster: 0, ox: 120, oy: 100 },
+  { title: 'Easy pasta recipes for beginners', cluster: 0, ox: 200, oy: 110 },
+  { title: 'Italian cuisine: a complete guide', cluster: 0, ox: 170, oy: 170 },
+  { title: 'The history of bread making', cluster: 0, ox: 100, oy: 160 },
+  { title: 'Best chocolate cake recipe', cluster: 0, ox: 210, oy: 180 },
+  { title: 'Vegan cooking for beginners', cluster: 0, ox: 140, oy: 200 },
+  // Outdoors cluster
+  { title: 'Best hiking trails in the Alps', cluster: 1, ox: 470, oy: 110 },
+  { title: 'Top 10 national parks in Europe', cluster: 1, ox: 530, oy: 130 },
+  { title: 'Camping gear essentials guide', cluster: 1, ox: 510, oy: 180 },
+  { title: 'Mountain climbing safety tips', cluster: 1, ox: 450, oy: 170 },
+  { title: 'Wildlife photography for beginners', cluster: 1, ox: 540, oy: 200 },
+  { title: 'Trail running training plan', cluster: 1, ox: 470, oy: 210 },
+  // Tech cluster
+  { title: 'Introduction to quantum computing', cluster: 2, ox: 280, oy: 420 },
+  { title: 'Machine learning with Python tutorial', cluster: 2, ox: 360, oy: 430 },
+  { title: 'Neural network basics explained', cluster: 2, ox: 300, oy: 490 },
+  { title: 'Deep learning frameworks comparison', cluster: 2, ox: 370, oy: 500 },
+  { title: 'Natural language processing guide', cluster: 2, ox: 250, oy: 480 },
+  { title: 'Building chatbots with transformers', cluster: 2, ox: 380, oy: 460 },
+];
+
+// Keywords associated with each document (for BM25 simulation)
+const DOC_KEYWORDS = DOCUMENTS.map(d => d.title.toLowerCase().split(/\s+/));
+
+// Semantic similarity keywords map (what concepts are related)
+const SEMANTIC_MAP = {
+  'bread': { clusters: [0], strongTerms: ['bake','sourdough','bread','making','history','dough','flour'], weakTerms: ['pasta','recipe','cooking','cuisine','italian','cake','vegan'] },
+  'recipes': { clusters: [0], strongTerms: ['recipe','pasta','cake','cooking','cuisine','bake','vegan'], weakTerms: ['beginner','guide','sourdough','bread'] },
+  'mountain': { clusters: [1], strongTerms: ['mountain','climbing','hiking','trail','alps','safety'], weakTerms: ['camping','national','park','wildlife','running','gear'] },
+  'hiking': { clusters: [1], strongTerms: ['hiking','trail','alps','mountain','climbing','running'], weakTerms: ['camping','gear','national','park','wildlife','nature'] },
+  'machine': { clusters: [2], strongTerms: ['machine','learning','python','neural','network','deep','framework'], weakTerms: ['quantum','computing','nlp','chatbot','transformer','natural'] },
+  'learning': { clusters: [2], strongTerms: ['learning','machine','deep','neural','framework','python'], weakTerms: ['quantum','computing','beginner','tutorial'] },
+  'italian': { clusters: [0], strongTerms: ['italian','cuisine','pasta','recipe','cooking'], weakTerms: ['bread','cake','vegan','beginner'] },
+  'food': { clusters: [0], strongTerms: ['cuisine','recipe','pasta','cooking','cake','vegan','bread','italian'], weakTerms: ['beginner','guide','sourdough'] },
+  'cooking': { clusters: [0], strongTerms: ['cooking','recipe','cuisine','pasta','vegan','cake','bake','bread'], weakTerms: ['beginner','italian','guide'] },
+  'camping': { clusters: [1], strongTerms: ['camping','gear','hiking','trail','mountain','national','park'], weakTerms: ['climbing','wildlife','running','safety'] },
+  'ai': { clusters: [2], strongTerms: ['machine','learning','neural','network','deep','chatbot','transformer','nlp','python'], weakTerms: ['quantum','computing','framework'] },
+  'python': { clusters: [2], strongTerms: ['python','machine','learning','tutorial','framework','deep'], weakTerms: ['neural','network','chatbot','nlp'] },
+  'neural': { clusters: [2], strongTerms: ['neural','network','deep','learning','machine','framework'], weakTerms: ['python','chatbot','transformer','quantum'] },
+  'nature': { clusters: [1], strongTerms: ['national','park','wildlife','hiking','trail','camping'], weakTerms: ['mountain','climbing','photography','running'] },
+  'baking': { clusters: [0], strongTerms: ['bake','sourdough','bread','cake','recipe','flour'], weakTerms: ['pasta','cooking','italian','vegan'] },
+  'deep': { clusters: [2], strongTerms: ['deep','learning','neural','network','framework','machine'], weakTerms: ['python','chatbot','transformer'] },
+  'quantum': { clusters: [2], strongTerms: ['quantum','computing','introduction'], weakTerms: ['machine','learning','neural','network'] },
+  'pasta': { clusters: [0], strongTerms: ['pasta','recipe','italian','cuisine','cooking'], weakTerms: ['beginner','bread','vegan','cake'] },
+  'trail': { clusters: [1], strongTerms: ['trail','hiking','running','alps','mountain'], weakTerms: ['camping','gear','national','park','climbing'] },
+  'park': { clusters: [1], strongTerms: ['national','park','europe','wildlife','nature'], weakTerms: ['hiking','trail','camping','photography'] },
+  'photography': { clusters: [1], strongTerms: ['photography','wildlife'], weakTerms: ['nature','national','park','camping','hiking'] },
+  'chatbot': { clusters: [2], strongTerms: ['chatbot','transformer','nlp','natural','language'], weakTerms: ['machine','learning','neural','deep'] },
+  'transformer': { clusters: [2], strongTerms: ['transformer','chatbot','deep','learning','nlp'], weakTerms: ['machine','neural','network','framework'] },
+};
+
+let documents = DOCUMENTS.map(d => ({ ...d, x: d.ox, y: d.oy }));
+let query = { x: W / 2, y: H / 2 };
+let dragging = false;
+let hoverDoc = -1;
+let currentQuery = '';
+let queryActive = false;
+
+function computeSemanticScores(queryText) {
+  const words = queryText.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 1);
+  const scores = documents.map((doc, i) => {
+    let score = 0;
+    const titleLower = doc.title.toLowerCase();
+    const titleWords = titleLower.split(/\s+/);
+
+    for (const word of words) {
+      // Direct title word match
+      for (const tw of titleWords) {
+        if (tw === word) score += 0.3;
+        else if (tw.includes(word) || word.includes(tw)) score += 0.15;
+      }
+
+      // Semantic map lookup
+      const sem = SEMANTIC_MAP[word];
+      if (sem) {
+        for (const st of sem.strongTerms) {
+          if (titleLower.includes(st)) score += 0.2;
+        }
+        for (const wt of sem.weakTerms) {
+          if (titleLower.includes(wt)) score += 0.08;
+        }
+        // Cluster proximity bonus
+        if (sem.clusters.includes(doc.cluster)) score += 0.15;
+      }
+    }
+
+    // Normalize and clamp to [0, 1]
+    score = Math.min(1.0, score);
+    // Add small noise for ranking variety
+    score += Math.random() * 0.01;
+    return { idx: i, score: Math.min(0.99, score) };
+  });
+
+  scores.sort((a, b) => b.score - a.score);
+  return scores;
+}
+
+function computeKeywordScores(queryText) {
+  const words = queryText.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+  const scores = documents.map((doc, i) => {
+    let matches = 0;
+    const titleLower = doc.title.toLowerCase();
+    for (const word of words) {
+      if (titleLower.includes(word)) matches++;
+    }
+    const score = words.length > 0 ? matches / words.length : 0;
+    return { idx: i, score };
+  });
+  scores.sort((a, b) => b.score - a.score);
+  return scores;
+}
+
+function getQueryPosition(queryText) {
+  const words = queryText.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 1);
+  let cx = W / 2, cy = H / 2;
+  let totalWeight = 0;
+
+  for (const word of words) {
+    const sem = SEMANTIC_MAP[word];
+    if (sem) {
+      for (const ci of sem.clusters) {
+        cx += CLUSTERS[ci].cx * 2;
+        cy += CLUSTERS[ci].cy * 2;
+        totalWeight += 2;
+      }
+    }
+    // Also check which docs match this word
+    documents.forEach(d => {
+      if (d.title.toLowerCase().includes(word)) {
+        cx += d.x * 0.5;
+        cy += d.y * 0.5;
+        totalWeight += 0.5;
+      }
+    });
+  }
+
+  if (totalWeight > 0) {
+    cx = (cx - W / 2) / totalWeight + (Math.random() - 0.5) * 20;
+    cy = (cy - H / 2) / totalWeight + (Math.random() - 0.5) * 20;
+  } else {
+    cx = W / 2 + (Math.random() - 0.5) * 100;
+    cy = H / 2 + (Math.random() - 0.5) * 100;
+  }
+
+  return {
+    x: Math.max(30, Math.min(W - 30, cx)),
+    y: Math.max(30, Math.min(H - 30, cy))
+  };
+}
+
+function performSearch(queryText) {
+  if (!queryText.trim()) return;
+  currentQuery = queryText.trim();
+  queryActive = true;
+
+  // Position the query in semantic space
+  const pos = getQueryPosition(currentQuery);
+  query.x = pos.x;
+  query.y = pos.y;
+
+  draw();
+}
+
+function drawStar(cx, cy, r1, r2, points, fillColor, strokeColor) {
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? r1 : r2;
+    const angle = (i * Math.PI) / points - Math.PI / 2;
+    const sx = cx + r * Math.cos(angle);
+    const sy = cy + r * Math.sin(angle);
+    if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  if (strokeColor) {
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function euclideanDist(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getTopKByDistance() {
+  const k = parseInt(topkSlider.value);
+  const scored = documents.map((d, i) => {
+    const dist = euclideanDist(query, d);
+    const maxDist = Math.sqrt(W * W + H * H);
+    const sim = 1 - (dist / maxDist);
+    return { idx: i, score: sim };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, k);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = '#313244';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < W; i += 50) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
+  }
+  for (let i = 0; i < H; i += 50) {
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke();
+  }
+
+  // Cluster backgrounds and labels
+  ctx.font = '13px system-ui';
+  ctx.textAlign = 'center';
+  CLUSTERS.forEach(c => {
+    ctx.fillStyle = c.color + '20';
+    ctx.beginPath();
+    ctx.arc(c.cx, c.cy, 100, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = c.color + 'aa';
+    ctx.fillText(c.name, c.cx, c.cy - 108);
+  });
+
+  // If query active, compute top-K by visual distance
+  let topK = [];
+  let topKIdxs = new Set();
+  if (queryActive) {
+    topK = getTopKByDistance();
+    topKIdxs = new Set(topK.map(t => t.idx));
+
+    // Lines from query to top-K
+    topK.forEach(({ idx, score }) => {
+      const d = documents[idx];
+      const grad = ctx.createLinearGradient(query.x, query.y, d.x, d.y);
+      grad.addColorStop(0, '#f9e2af');
+      grad.addColorStop(1, CLUSTERS[d.cluster].color);
+      ctx.beginPath();
+      ctx.moveTo(query.x, query.y);
+      ctx.lineTo(d.x, d.y);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 2.5;
+      ctx.globalAlpha = 0.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  // Document dots with labels
+  documents.forEach((d, i) => {
+    const isTopK = topKIdxs.has(i);
+    const isHover = i === hoverDoc;
+    const r = isTopK ? 8 : 6;
+    const clr = CLUSTERS[d.cluster].color;
+
+    if (isTopK) {
+      const glow = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, 22);
+      glow.addColorStop(0, clr + '55');
+      glow.addColorStop(1, 'transparent');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(d.x, d.y, 22, 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.fillStyle = isTopK ? clr : clr + '88';
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (isHover) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(d.x, d.y, r + 3, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // Short label next to dot
+    const shortTitle = d.title.length > 28 ? d.title.substring(0, 26) + '...' : d.title;
+    ctx.font = isTopK ? 'bold 10px system-ui' : '9px system-ui';
+    ctx.fillStyle = isTopK ? '#cdd6f4' : '#6c708688';
+    ctx.textAlign = 'left';
+    ctx.fillText(shortTitle, d.x + r + 5, d.y + 3);
+
+    // Score for top-K
+    if (isTopK) {
+      const scoreObj = topK.find(t => t.idx === i);
+      if (scoreObj) {
+        ctx.font = 'bold 10px monospace';
+        ctx.fillStyle = '#f9e2af';
+        ctx.textAlign = 'right';
+        ctx.fillText(scoreObj.score.toFixed(2), d.x - r - 4, d.y + 3);
+      }
+    }
+  });
+
+  // Query star
+  if (queryActive) {
+    const glow = ctx.createRadialGradient(query.x, query.y, 0, query.x, query.y, 30);
+    glow.addColorStop(0, '#f9e2af66');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(query.x, query.y, 30, 0, Math.PI * 2); ctx.fill();
+    drawStar(query.x, query.y, 16, 8, 5, '#f9e2af', '#fff');
+
+    ctx.font = 'bold 11px system-ui';
+    ctx.fillStyle = '#f9e2af';
+    ctx.textAlign = 'center';
+    const displayQ = currentQuery.length > 20 ? currentQuery.substring(0, 18) + '...' : currentQuery;
+    ctx.fillText('"' + displayQ + '"', query.x, query.y - 22);
+  }
+
+  // Update results panels
+  updateResults();
+}
+
+function updateResults() {
+  denseResultsList.innerHTML = '';
+  keywordResultsList.innerHTML = '';
+
+  if (!queryActive || !currentQuery) {
+    denseResultsList.innerHTML = '<div style="color:#585b70;font-size:0.8rem;padding:8px;">Type a query to see results...</div>';
+    keywordResultsList.innerHTML = '<div style="color:#585b70;font-size:0.8rem;padding:8px;">Type a query to see results...</div>';
+    comparisonBox.style.display = 'none';
+    return;
+  }
+
+  const k = parseInt(topkSlider.value);
+
+  // Dense retrieval results (semantic)
+  const denseScores = computeSemanticScores(currentQuery);
+  const denseTopK = denseScores.slice(0, k);
+
+  denseTopK.forEach(({ idx, score }, rank) => {
+    const d = documents[idx];
+    const el = document.createElement('div');
+    el.className = 'result-item highlighted';
+    el.style.borderLeftColor = CLUSTERS[d.cluster].color;
+    el.innerHTML = '<span class="title">' + (rank + 1) + '. ' + d.title + '</span><span class="score">' + score.toFixed(2) + '</span>';
+    denseResultsList.appendChild(el);
+  });
+
+  // Keyword (BM25) results
+  const keywordScores = computeKeywordScores(currentQuery);
+  const keywordTopK = keywordScores.slice(0, k);
+  let anyKeywordMatch = false;
+
+  keywordTopK.forEach(({ idx, score }, rank) => {
+    const d = documents[idx];
+    const el = document.createElement('div');
+    el.className = 'result-item';
+    if (score > 0) {
+      anyKeywordMatch = true;
+      el.className += ' highlighted';
+      el.style.borderLeftColor = '#fab387';
+      el.innerHTML = '<span class="title">' + (rank + 1) + '. ' + d.title + '</span><span class="score" style="color:#fab387;">' + score.toFixed(2) + '</span>';
+    } else {
+      el.innerHTML = '<span class="title no-match">' + (rank + 1) + '. ' + d.title + '</span><span class="score" style="color:#585b70;">0.00</span>';
+    }
+    keywordResultsList.appendChild(el);
+  });
+
+  // Show comparison insight
+  comparisonBox.style.display = 'block';
+  const denseSet = new Set(denseTopK.map(d => d.idx));
+  const kwMatchSet = new Set(keywordTopK.filter(k => k.score > 0).map(k => k.idx));
+  const onlyInDense = denseTopK.filter(d => !kwMatchSet.has(d.idx));
+
+  if (onlyInDense.length > 0) {
+    const examples = onlyInDense.slice(0, 2).map(d => '"' + documents[d.idx].title + '"').join(' and ');
+    comparisonBox.innerHTML = '<strong>Key difference:</strong><br>' +
+      '<span class="dense-label">Dense retrieval</span> found ' + examples +
+      ' through semantic understanding, even though the query words do not appear in those titles.<br><br>' +
+      '<span class="keyword-label">Keyword search</span> only matched documents containing the exact query words.';
+  } else {
+    comparisonBox.innerHTML = '<strong>In this case:</strong><br>' +
+      'Both methods found similar results because the query words appear directly in the document titles. ' +
+      'Try a more abstract query like "baking" or "nature trips" to see the difference!';
+  }
+}
+
+// Event listeners
+btnSearch.addEventListener('click', () => performSearch(queryInput.value));
+queryInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') performSearch(queryInput.value); });
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const q = btn.getAttribute('data-query');
+    queryInput.value = q;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    performSearch(q);
+  });
+});
+
+topkSlider.addEventListener('input', () => {
+  topkVal.textContent = topkSlider.value;
+  draw();
+});
+
+// Drag query star
+canvas.addEventListener('mousedown', (e) => {
+  if (!queryActive) return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width, scaleY = H / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+  const dx = query.x - mx, dy = query.y - my;
+  if (Math.sqrt(dx * dx + dy * dy) < 25) dragging = true;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width, scaleY = H / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+
+  if (dragging) {
+    query.x = Math.max(15, Math.min(W - 15, mx));
+    query.y = Math.max(15, Math.min(H - 15, my));
+    draw();
+    return;
+  }
+
+  let found = -1;
+  for (let i = 0; i < documents.length; i++) {
+    const dx = documents[i].x - mx, dy = documents[i].y - my;
+    if (Math.sqrt(dx * dx + dy * dy) < 14) { found = i; break; }
+  }
+
+  if (found !== hoverDoc) {
+    hoverDoc = found;
+    if (found >= 0) {
+      const d = documents[found];
+      tooltipEl.innerHTML = '<strong>' + d.title + '</strong><div class="topic">' + CLUSTERS[d.cluster].name + '</div>';
+      tooltipEl.classList.add('visible');
+      const tx = (d.x / scaleX) + rect.left - canvas.parentElement.getBoundingClientRect().left + 15;
+      const ty = (d.y / scaleY) - 10;
+      tooltipEl.style.left = tx + 'px';
+      tooltipEl.style.top = ty + 'px';
+    } else {
+      tooltipEl.classList.remove('visible');
+    }
+    draw();
+  }
+});
+
+canvas.addEventListener('mouseup', () => { dragging = false; });
+canvas.addEventListener('mouseleave', () => {
+  dragging = false;
+  hoverDoc = -1;
+  tooltipEl.classList.remove('visible');
+  draw();
+});
+
+// Touch support
+canvas.addEventListener('touchstart', (e) => {
+  if (!queryActive) return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width, scaleY = H / rect.height;
+  const touch = e.touches[0];
+  const mx = (touch.clientX - rect.left) * scaleX;
+  const my = (touch.clientY - rect.top) * scaleY;
+  const dx = query.x - mx, dy = query.y - my;
+  if (Math.sqrt(dx * dx + dy * dy) < 35) dragging = true;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width, scaleY = H / rect.height;
+  const touch = e.touches[0];
+  query.x = Math.max(15, Math.min(W - 15, (touch.clientX - rect.left) * scaleX));
+  query.y = Math.max(15, Math.min(H - 15, (touch.clientY - rect.top) * scaleY));
+  draw();
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => { dragging = false; });
+
+draw();
+</script>
+</body>
+</html>

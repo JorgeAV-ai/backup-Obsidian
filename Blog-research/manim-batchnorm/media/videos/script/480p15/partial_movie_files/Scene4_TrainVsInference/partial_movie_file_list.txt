@@ -1,0 +1,8 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene4_TrainVsInference/4032159847_1192466837_223132457.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene4_TrainVsInference/3753229454_730570779_526663750.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene4_TrainVsInference/3753229454_1105215870_2693962989.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene4_TrainVsInference/3753229454_1200919518_3989857758.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene4_TrainVsInference/3753229454_1105215870_2119072286.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene4_TrainVsInference/3753229454_2477949070_3859186017.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene4_TrainVsInference/3753229454_3877907558_1820236147.mp4'

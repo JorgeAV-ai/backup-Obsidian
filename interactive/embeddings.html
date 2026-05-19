@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Embeddings: How Computers Understand Words</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:24px 16px 4px;font-size:1.5rem;color:#cba6f7}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:16px;font-size:.9rem}
+.container{max-width:1200px;width:100%;margin:0 auto;padding:0 16px;flex:1}
+.panels{display:grid;grid-template-columns:1fr 380px;gap:16px;margin-bottom:20px}
+@media(max-width:850px){.panels{grid-template-columns:1fr}}
+.canvas-wrap{background:#181825;border:1px solid #313244;border-radius:14px;overflow:hidden;position:relative;min-height:500px}
+canvas{display:block;width:100%;height:100%;cursor:grab}
+canvas:active{cursor:grabbing}
+.side-panels{display:flex;flex-direction:column;gap:14px}
+.panel{background:#181825;border:1px solid #313244;border-radius:14px;padding:16px}
+.panel h2{font-size:1rem;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #313244}
+.panel h2.purple{color:#cba6f7}
+.panel h2.blue{color:#89b4fa}
+.panel h2.green{color:#a6e3a1}
+.panel h2.yellow{color:#f9e2af}
+select{background:#313244;color:#cdd6f4;border:1px solid #45475a;padding:6px 10px;border-radius:6px;font-size:.85rem;width:100%}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.row label{font-size:.82rem;color:#a6adc8;min-width:60px}
+.btn{background:#cba6f7;color:#1e1e2e;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem;transition:all .2s;width:100%}
+.btn:hover{background:#b4befe}
+.result-box{background:#313244;border-radius:8px;padding:12px;margin-top:10px;font-size:.88rem;text-align:center;min-height:40px}
+.result-box .answer{color:#a6e3a1;font-weight:700;font-size:1.1rem}
+.gauge-wrap{display:flex;align-items:center;gap:12px;margin-top:10px}
+.gauge-bar{flex:1;height:20px;background:#313244;border-radius:10px;overflow:hidden;position:relative}
+.gauge-fill{height:100%;border-radius:10px;transition:width .5s}
+.gauge-label{font-size:.85rem;font-weight:600;min-width:50px;text-align:right}
+.preset-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.preset-btns button{background:#313244;border:1px solid #45475a;color:#cdd6f4;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.75rem;transition:all .2s}
+.preset-btns button:hover{border-color:#cba6f7;color:#cba6f7}
+.onehot-section{margin-top:8px}
+.onehot-section .vec{display:flex;gap:2px;flex-wrap:wrap;margin:6px 0}
+.onehot-section .vec span{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:.55rem;border-radius:3px;font-weight:700}
+.arrow-down{text-align:center;color:#cba6f7;font-size:1.2rem;margin:4px 0}
+.legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:.78rem}
+.legend-dot{width:12px;height:12px;border-radius:50%}
+.click-word{font-size:.8rem;color:#585b70;text-align:center;margin-top:4px}
+footer{text-align:center;padding:20px;color:#585b70;font-size:.8rem;margin-top:24px;border-top:1px solid #313244}
+</style>
+</head>
+<body>
+<h1>Embeddings: How Computers Understand Words</h1>
+<p class="subtitle">Explore how words live in a mathematical space where meaning has geometry</p>
+<div class="container">
+  <div class="legend" id="legend"></div>
+  <div class="panels">
+    <div class="canvas-wrap"><canvas id="canvas"></canvas></div>
+    <div class="side-panels">
+      <div class="panel">
+        <h2 class="purple">Vector Arithmetic</h2>
+        <div class="preset-btns" id="presetBtns"></div>
+        <div class="row"><label>Word1</label><select id="w1"></select></div>
+        <div class="row"><label>- Word2</label><select id="w2"></select></div>
+        <div class="row"><label>+ Word3</label><select id="w3"></select></div>
+        <button class="btn" onclick="computeArithmetic()">Calculate</button>
+        <div class="result-box" id="arithResult">Select words and click Calculate</div>
+      </div>
+      <div class="panel">
+        <h2 class="blue">How Similar?</h2>
+        <div class="row"><label>Word A</label><select id="simA"></select></div>
+        <div class="row"><label>Word B</label><select id="simB"></select></div>
+        <button class="btn" onclick="computeSimilarity()">Compare</button>
+        <div class="gauge-wrap" id="gaugeWrap" style="display:none">
+          <div class="gauge-bar"><div class="gauge-fill" id="gaugeFill"></div></div>
+          <div class="gauge-label" id="gaugeLabel"></div>
+        </div>
+        <div class="result-box" id="simResult">Select two words to compare</div>
+      </div>
+      <div class="panel">
+        <h2 class="yellow">One-Hot to Dense</h2>
+        <p style="font-size:.8rem;color:#a6adc8;margin-bottom:8px">Click any word on the plot to see its one-hot encoding transform into a dense embedding vector.</p>
+        <div class="onehot-section" id="onehotSection">
+          <div class="click-word">Click a word on the canvas</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const clusters={
+  Royalty:{color:'#cba6f7',words:{king:[2.1,3.8],queen:[2.5,4.2],prince:[1.8,3.4],princess:[2.8,3.6]}},
+  Animals:{color:'#a6e3a1',words:{cat:[6.2,1.5],dog:[6.5,1.9],bird:[5.8,2.3],fish:[6.8,1.1],puppy:[6.9,2.2],kitten:[5.9,1.2]}},
+  Food:{color:'#f9e2af',words:{pizza:[1.5,7.2],bread:[1.9,6.8],pasta:[1.2,7.6],sushi:[2.3,7.0],rice:[2.6,7.4]}},
+  Countries:{color:'#89b4fa',words:{Spain:[8.2,5.5],France:[8.5,5.9],Japan:[7.8,6.3],Brazil:[8.8,5.2]}},
+  People:{color:'#f38ba8',words:{man:[3.5,2.8],woman:[3.9,3.2],boy:[3.2,2.5],girl:[4.2,2.9]}},
+  Concepts:{color:'#89dceb',words:{happy:[5.0,5.5],sad:[5.4,5.0],love:[4.6,5.8],hate:[5.8,4.6]}}
+};
+
+// Build simulated high-dim embeddings (we use 16-dim for illustration)
+const allWords=[];
+const wordData={};
+const DIM=16;
+
+function seedRandom(s){let m=2147483647,a=16807,seed=s%m;return()=>{seed=(seed*a)%m;return(seed-1)/(m-1)}}
+
+(function buildEmbeddings(){
+  let idx=0;
+  const rng=seedRandom(42);
+  for(const[cluster,info] of Object.entries(clusters)){
+    // cluster centroid in high-dim
+    const centroid=Array.from({length:DIM},()=>rng()*2-1);
+    for(const[word,pos2d] of Object.entries(info.words)){
+      const emb=centroid.map(v=>v+(rng()*0.6-0.3));
+      wordData[word]={emb,pos2d,color:info.color,cluster,idx};
+      allWords.push(word);
+      idx++;
+    }
+  }
+  // Manually adjust embeddings to make arithmetic work
+  // king - man + woman ≈ queen
+  const king=wordData.king.emb, man=wordData.man.emb, woman=wordData.woman.emb, queen=wordData.queen.emb;
+  for(let i=0;i<DIM;i++) queen[i]=king[i]-man[i]+woman[i]+(.05*Math.random()-.025);
+  // Paris-like: use France/Spain (France - Spain concept encoded in positions)
+  // puppy - dog + cat ≈ kitten
+  const puppy=wordData.puppy.emb, dog=wordData.dog.emb, cat=wordData.cat.emb, kitten=wordData.kitten.emb;
+  for(let i=0;i<DIM;i++) kitten[i]=puppy[i]-dog[i]+cat[i]+(.05*Math.random()-.025);
+  // Make Japan relate to France and Spain
+  const japan=wordData.Japan.emb, france=wordData.France.emb, spain=wordData.Spain.emb;
+  // France - Spain + Japan should be somewhat near Japan's neighbor Brazil, but let's make "Paris-France+Spain=Madrid" concept work via country similarity
+})();
+
+function cosine(a,b){
+  let dot=0,na=0,nb=0;
+  for(let i=0;i<a.length;i++){dot+=a[i]*b[i];na+=a[i]*a[i];nb+=b[i]*b[i]}
+  return dot/(Math.sqrt(na)*Math.sqrt(nb));
+}
+
+function vecOp(a,b,c){return a.map((_,i)=>a[i]-b[i]+c[i])}
+function nearest(vec,exclude=[]){
+  let best=null,bestSim=-Infinity;
+  for(const w of allWords){
+    if(exclude.includes(w))continue;
+    const s=cosine(vec,wordData[w].emb);
+    if(s>bestSim){bestSim=s;best=w}
+  }
+  return{word:best,sim:bestSim};
+}
+
+// Canvas
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+let W,H,scale,offsetX=0,offsetY=0;
+let dragging=null,dragStartX,dragStartY;
+let panStartX,panStartY,isPanning=false;
+
+function resize(){
+  const r=canvas.parentElement.getBoundingClientRect();
+  canvas.width=r.width*devicePixelRatio;
+  canvas.height=r.height*devicePixelRatio;
+  W=r.width;H=r.height;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  scale=Math.min(W,H)/12;
+  draw();
+}
+
+function toScreen(x,y){return[(x+offsetX)*scale+W/2-5*scale,(y+offsetY)*scale+H/2-4*scale]}
+function fromScreen(sx,sy){return[(sx-W/2+5*scale)/scale-offsetX,(sy-H/2+4*scale)/scale-offsetY]}
+
+let resultVecPos=null;
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // Draw cluster regions (subtle)
+  for(const[,info] of Object.entries(clusters)){
+    const pts=Object.values(info.words);
+    if(pts.length<2)continue;
+    const cx=pts.reduce((s,p)=>s+p[0],0)/pts.length;
+    const cy=pts.reduce((s,p)=>s+p[1],0)/pts.length;
+    const[sx,sy]=toScreen(cx,cy);
+    const grad=ctx.createRadialGradient(sx,sy,0,sx,sy,scale*1.8);
+    grad.addColorStop(0,info.color+'15');
+    grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad;
+    ctx.beginPath();ctx.arc(sx,sy,scale*1.8,0,Math.PI*2);ctx.fill();
+  }
+  // Draw words
+  for(const w of allWords){
+    const d=wordData[w];
+    const[sx,sy]=toScreen(d.pos2d[0],d.pos2d[1]);
+    ctx.beginPath();ctx.arc(sx,sy,8,0,Math.PI*2);
+    ctx.fillStyle=d.color;ctx.fill();
+    ctx.strokeStyle='#1e1e2e';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#cdd6f4';ctx.font='600 12px system-ui';ctx.textAlign='center';
+    ctx.fillText(w,sx,sy-14);
+  }
+  // Result vector
+  if(resultVecPos){
+    const[sx,sy]=toScreen(resultVecPos[0],resultVecPos[1]);
+    ctx.beginPath();ctx.arc(sx,sy,10,0,Math.PI*2);
+    ctx.fillStyle='#f38ba8';ctx.fill();
+    ctx.strokeStyle='#fab387';ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle='#f38ba8';ctx.font='bold 12px system-ui';
+    ctx.fillText('Result',sx,sy-16);
+  }
+}
+
+canvas.addEventListener('mousedown',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  // Check if clicking a word
+  for(const w of allWords){
+    const[sx,sy]=toScreen(wordData[w].pos2d[0],wordData[w].pos2d[1]);
+    if(Math.hypot(mx-sx,my-sy)<16){
+      dragging=w;dragStartX=mx-sx;dragStartY=my-sy;
+      showOneHot(w);
+      return;
+    }
+  }
+  isPanning=true;panStartX=mx;panStartY=my;
+});
+
+canvas.addEventListener('mousemove',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  if(dragging){
+    const[x,y]=fromScreen(mx-dragStartX,my-dragStartY);
+    wordData[dragging].pos2d=[x,y];
+    draw();
+  }else if(isPanning){
+    offsetX+=(mx-panStartX)/scale;
+    offsetY+=(my-panStartY)/scale;
+    panStartX=mx;panStartY=my;
+    draw();
+  }
+});
+
+canvas.addEventListener('mouseup',()=>{dragging=null;isPanning=false});
+canvas.addEventListener('mouseleave',()=>{dragging=null;isPanning=false});
+
+// Touch support
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  const rect=canvas.getBoundingClientRect();
+  const mx=t.clientX-rect.left,my=t.clientY-rect.top;
+  for(const w of allWords){
+    const[sx,sy]=toScreen(wordData[w].pos2d[0],wordData[w].pos2d[1]);
+    if(Math.hypot(mx-sx,my-sy)<24){dragging=w;dragStartX=mx-sx;dragStartY=my-sy;showOneHot(w);return}
+  }
+  isPanning=true;panStartX=mx;panStartY=my;
+},{passive:false});
+
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  const rect=canvas.getBoundingClientRect();
+  const mx=t.clientX-rect.left,my=t.clientY-rect.top;
+  if(dragging){const[x,y]=fromScreen(mx-dragStartX,my-dragStartY);wordData[dragging].pos2d=[x,y];draw()}
+  else if(isPanning){offsetX+=(mx-panStartX)/scale;offsetY+=(my-panStartY)/scale;panStartX=mx;panStartY=my;draw()}
+},{passive:false});
+
+canvas.addEventListener('touchend',()=>{dragging=null;isPanning=false});
+
+// Populate selects
+function populateSelects(){
+  const sels=['w1','w2','w3','simA','simB'].map(id=>document.getElementById(id));
+  sels.forEach(s=>{
+    s.innerHTML='';
+    allWords.forEach(w=>{const o=document.createElement('option');o.value=w;o.textContent=w;s.appendChild(o)});
+  });
+  document.getElementById('w1').value='king';
+  document.getElementById('w2').value='man';
+  document.getElementById('w3').value='woman';
+  document.getElementById('simA').value='cat';
+  document.getElementById('simB').value='dog';
+}
+
+// Presets
+const presets=[
+  {label:'king - man + woman = ?',w1:'king',w2:'man',w3:'woman'},
+  {label:'puppy - dog + cat = ?',w1:'puppy',w2:'dog',w3:'cat'},
+  {label:'France - Spain + Japan = ?',w1:'France',w2:'Spain',w3:'Japan'}
+];
+
+function initPresets(){
+  const c=document.getElementById('presetBtns');
+  presets.forEach(p=>{
+    const b=document.createElement('button');
+    b.textContent=p.label;
+    b.onclick=()=>{
+      document.getElementById('w1').value=p.w1;
+      document.getElementById('w2').value=p.w2;
+      document.getElementById('w3').value=p.w3;
+      computeArithmetic();
+    };
+    c.appendChild(b);
+  });
+}
+
+function computeArithmetic(){
+  const w1=document.getElementById('w1').value;
+  const w2=document.getElementById('w2').value;
+  const w3=document.getElementById('w3').value;
+  const vec=vecOp(wordData[w1].emb,wordData[w2].emb,wordData[w3].emb);
+  const{word,sim}=nearest(vec,[w1,w2,w3]);
+  // Approximate 2D position for result
+  const p1=wordData[w1].pos2d,p2=wordData[w2].pos2d,p3=wordData[w3].pos2d;
+  resultVecPos=[p1[0]-p2[0]+p3[0],p1[1]-p2[1]+p3[1]];
+  draw();
+  const res=document.getElementById('arithResult');
+  res.innerHTML=`${w1} - ${w2} + ${w3} = <span class="answer">${word}</span><br><span style="font-size:.8rem;color:#a6adc8">(similarity: ${sim.toFixed(3)})</span>`;
+}
+
+function computeSimilarity(){
+  const a=document.getElementById('simA').value;
+  const b=document.getElementById('simB').value;
+  const sim=cosine(wordData[a].emb,wordData[b].emb);
+  const pct=Math.max(0,Math.min(1,(sim+1)/2));
+  const actual=sim.toFixed(2);
+  document.getElementById('gaugeWrap').style.display='flex';
+  const fill=document.getElementById('gaugeFill');
+  fill.style.width=`${pct*100}%`;
+  fill.style.background=pct>.6?'#a6e3a1':pct>.3?'#f9e2af':'#f38ba8';
+  document.getElementById('gaugeLabel').textContent=actual;
+  const desc=sim>.7?'very similar':sim>.4?'somewhat similar':sim>.1?'weakly related':'very different';
+  document.getElementById('simResult').innerHTML=`<strong>${a}</strong> &#8596; <strong>${b}</strong>: ${actual} <span style="color:#a6adc8">(${desc})</span>`;
+}
+
+function showOneHot(word){
+  const sec=document.getElementById('onehotSection');
+  const idx=wordData[word].idx;
+  const n=allWords.length;
+  let html=`<div style="font-size:.82rem;color:#cba6f7;font-weight:600;margin-bottom:4px">"${word}" - One-Hot Vector</div>`;
+  html+=`<div class="vec">`;
+  for(let i=0;i<n;i++){
+    const isOne=i===idx;
+    html+=`<span style="background:${isOne?'#cba6f7':'#313244'};color:${isOne?'#1e1e2e':'#585b70'}">${isOne?'1':'0'}</span>`;
+  }
+  html+=`</div>`;
+  html+=`<div class="arrow-down">&#8595; Embedding Matrix Multiply &#8595;</div>`;
+  html+=`<div style="font-size:.82rem;color:#a6e3a1;font-weight:600;margin:4px 0">Dense Embedding (${DIM}-dim)</div>`;
+  html+=`<div class="vec">`;
+  wordData[word].emb.forEach(v=>{
+    const intensity=Math.abs(v);
+    const bg=v>0?`rgba(166,227,161,${Math.min(intensity*.7,.9)})`:`rgba(243,139,168,${Math.min(intensity*.7,.9)})`;
+    html+=`<span style="background:${bg};color:#1e1e2e">${v.toFixed(1)}</span>`;
+  });
+  html+=`</div>`;
+  html+=`<div style="font-size:.72rem;color:#585b70;margin-top:6px">Most values are non-zero: dense representation captures nuanced meaning</div>`;
+  sec.innerHTML=html;
+}
+
+// Legend
+function initLegend(){
+  const l=document.getElementById('legend');
+  for(const[name,info] of Object.entries(clusters)){
+    l.innerHTML+=`<div class="legend-item"><div class="legend-dot" style="background:${info.color}"></div>${name}</div>`;
+  }
+}
+
+window.addEventListener('resize',resize);
+populateSelects();
+initPresets();
+initLegend();
+resize();
+</script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Convolution: How AI Sees Images</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:1.5rem 1rem .5rem;font-size:1.8rem;background:linear-gradient(135deg,#89b4fa,#f9e2af);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:1.2rem;font-size:.95rem}
+.container{max-width:1100px;margin:0 auto;padding:0 1rem;flex:1;width:100%}
+.main-grid{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;margin-bottom:1rem}
+.panel{background:#313244;border-radius:12px;padding:1rem}
+.panel h3{font-size:.95rem;color:#89b4fa;margin-bottom:.8rem;text-align:center}
+.grid-wrap{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+table.pixel-grid{border-collapse:collapse}
+table.pixel-grid td{width:44px;height:44px;text-align:center;font-size:.75rem;font-weight:600;border:1px solid #45475a;transition:all .3s;position:relative}
+table.pixel-grid td.highlight{border:2px solid #f9e2af;z-index:1}
+table.pixel-grid td.kernel-pos{background:rgba(249,226,175,.15);border-color:#f9e2af}
+table.kernel-grid{border-collapse:collapse}
+table.kernel-grid td{width:52px;height:42px;text-align:center;font-size:.8rem;border:1px solid #585b70;background:#1e1e2e;color:#cdd6f4}
+table.kernel-grid input{width:48px;height:38px;text-align:center;background:#1e1e2e;border:none;color:#cdd6f4;font-size:.8rem;outline:none}
+table.kernel-grid input:focus{background:#45475a}
+table.output-grid{border-collapse:collapse}
+table.output-grid td{width:44px;height:44px;text-align:center;font-size:.72rem;font-weight:600;border:1px solid #45475a;transition:all .3s}
+table.output-grid td.current{border:2px solid #a6e3a1;background:rgba(166,227,161,.15)}
+.kernel-buttons{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.8rem;justify-content:center}
+.kernel-buttons button{padding:.35rem .7rem;border-radius:6px;border:1px solid #585b70;background:#45475a;color:#cdd6f4;cursor:pointer;font-size:.75rem;transition:all .2s}
+.kernel-buttons button:hover,.kernel-buttons button.active{background:#585b70;border-color:#89b4fa;color:#89b4fa}
+.controls-row{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;align-items:center;margin:1rem 0}
+.ctrl{display:flex;align-items:center;gap:.5rem;background:#313244;padding:.6rem 1rem;border-radius:10px}
+.ctrl label{font-size:.85rem;font-weight:600;color:#89b4fa}
+.ctrl input[type=range]{width:100px;accent-color:#89b4fa}
+.ctrl .val{color:#f9e2af;font-weight:700;min-width:20px}
+.ctrl button{padding:.4rem .9rem;border-radius:6px;border:1px solid #585b70;background:#45475a;color:#cdd6f4;cursor:pointer;font-size:.85rem;transition:all .2s}
+.ctrl button:hover{background:#89b4fa;color:#1e1e2e;border-color:#89b4fa}
+.ctrl button.active-toggle{background:#a6e3a1;color:#1e1e2e;border-color:#a6e3a1}
+.calc-box{background:#313244;border-radius:12px;padding:1rem;margin:1rem 0;font-size:.82rem;line-height:1.6;text-align:center;min-height:3rem}
+.calc-box .formula{color:#f9e2af;font-weight:600}
+.calc-box .result{color:#a6e3a1;font-weight:700;font-size:1rem}
+.info-row{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin:.8rem 0}
+.info-card{background:#313244;border-radius:8px;padding:.6rem 1rem;font-size:.8rem;text-align:center}
+.info-card .v{font-weight:700;color:#89b4fa}
+footer{text-align:center;padding:1.5rem;color:#585b70;font-size:.8rem;margin-top:auto}
+@media(max-width:700px){table.pixel-grid td,table.output-grid td{width:34px;height:34px;font-size:.65rem}table.kernel-grid td,table.kernel-grid input{width:42px;height:34px;font-size:.7rem}}
+</style>
+</head>
+<body>
+<h1>Convolution: How AI Sees Images</h1>
+<p class="subtitle">Slide a kernel (filter) across pixels to detect patterns like edges, blur, and more</p>
+<div class="container">
+  <div class="panel">
+    <h3>Kernel Presets</h3>
+    <div class="kernel-buttons" id="kernelBtns"></div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="panel">
+      <h3>Input Image (7x7)</h3>
+      <table class="pixel-grid" id="inputGrid"></table>
+    </div>
+    <div class="panel">
+      <h3>Kernel (3x3)</h3>
+      <table class="kernel-grid" id="kernelGrid"></table>
+    </div>
+    <div class="panel">
+      <h3 id="outputTitle">Output</h3>
+      <table class="output-grid" id="outputGrid"></table>
+    </div>
+  </div>
+
+  <div class="calc-box" id="calcBox">Click on the input grid or press Animate to see the calculation</div>
+
+  <div class="controls-row">
+    <div class="ctrl">
+      <button id="animateBtn" onclick="toggleAnimate()">&#9654; Animate</button>
+    </div>
+    <div class="ctrl">
+      <label>Stride:</label>
+      <input type="range" id="strideSlider" min="1" max="3" value="1">
+      <span class="val" id="strideVal">1</span>
+    </div>
+    <div class="ctrl">
+      <label>Padding:</label>
+      <button id="padBtn" onclick="togglePadding()">Valid</button>
+    </div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-card">Input: <span class="v" id="infoIn">7x7</span></div>
+    <div class="info-card">Kernel: <span class="v">3x3</span></div>
+    <div class="info-card">Stride: <span class="v" id="infoStride">1</span></div>
+    <div class="info-card">Padding: <span class="v" id="infoPad">Valid (0)</span></div>
+    <div class="info-card">Output: <span class="v" id="infoOut">5x5</span></div>
+  </div>
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+// White square on dark background
+const baseImage = [
+  [20, 20, 20, 20, 20, 20, 20],
+  [20, 20, 20, 20, 20, 20, 20],
+  [20, 20,200,200,200, 20, 20],
+  [20, 20,200,255,200, 20, 20],
+  [20, 20,200,200,200, 20, 20],
+  [20, 20, 20, 20, 20, 20, 20],
+  [20, 20, 20, 20, 20, 20, 20]
+];
+
+const kernelPresets = {
+  'Edge H':{k:[[-1,-1,-1],[0,0,0],[1,1,1]],desc:'Edge Detection (horizontal)'},
+  'Edge V':{k:[[-1,0,1],[-1,0,1],[-1,0,1]],desc:'Edge Detection (vertical)'},
+  'Blur':{k:[[1/9,1/9,1/9],[1/9,1/9,1/9],[1/9,1/9,1/9]],desc:'Blur (average)'},
+  'Sharpen':{k:[[0,-1,0],[-1,5,-1],[0,-1,0]],desc:'Sharpen'},
+  'Custom':{k:[[0,0,0],[0,1,0],[0,0,0]],desc:'Custom (editable)'}
+};
+
+let kernel = [[-1,-1,-1],[0,0,0],[1,1,1]];
+let currentPreset = 'Edge H';
+let stride = 1;
+let usePadding = false;
+let curR = 0, curC = 0;
+let animating = false;
+let animTimer = null;
+
+function getImage() {
+  if (!usePadding) return baseImage;
+  const padded = [];
+  const p = 1;
+  const h = baseImage.length, w = baseImage[0].length;
+  for (let r = -p; r < h + p; r++) {
+    const row = [];
+    for (let c = -p; c < w + p; c++) {
+      row.push((r >= 0 && r < h && c >= 0 && c < w) ? baseImage[r][c] : 0);
+    }
+    padded.push(row);
+  }
+  return padded;
+}
+
+function computeOutput() {
+  const img = getImage();
+  const H = img.length, W = img[0].length;
+  const oH = Math.floor((H - 3) / stride) + 1;
+  const oW = Math.floor((W - 3) / stride) + 1;
+  const out = [];
+  for (let r = 0; r < oH; r++) {
+    const row = [];
+    for (let c = 0; c < oW; c++) {
+      let sum = 0;
+      for (let kr = 0; kr < 3; kr++)
+        for (let kc = 0; kc < 3; kc++)
+          sum += img[r * stride + kr][c * stride + kc] * kernel[kr][kc];
+      row.push(Math.round(sum));
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+function grayStyle(v) {
+  const clamped = Math.max(0, Math.min(255, v));
+  const brightness = clamped;
+  return `background:rgb(${brightness},${brightness},${brightness});color:${brightness > 128 ? '#1e1e2e' : '#cdd6f4'}`;
+}
+
+function renderInputGrid() {
+  const img = getImage();
+  const H = img.length, W = img[0].length;
+  let html = '';
+  for (let r = 0; r < H; r++) {
+    html += '<tr>';
+    for (let c = 0; c < W; c++) {
+      const inKernel = r >= curR * stride && r < curR * stride + 3 && c >= curC * stride && c < curC * stride + 3;
+      html += `<td class="${inKernel ? 'kernel-pos' : ''}" style="${grayStyle(img[r][c])}" onclick="setPos(${r},${c})">${img[r][c]}</td>`;
+    }
+    html += '</tr>';
+  }
+  document.getElementById('inputGrid').innerHTML = html;
+}
+
+function renderKernelGrid() {
+  let html = '';
+  for (let r = 0; r < 3; r++) {
+    html += '<tr>';
+    for (let c = 0; c < 3; c++) {
+      const v = kernel[r][c];
+      const display = Number.isInteger(v) ? v : v.toFixed(3);
+      if (currentPreset === 'Custom') {
+        html += `<td><input type="number" step="any" value="${display}" onchange="setKernel(${r},${c},this.value)"></td>`;
+      } else {
+        html += `<td>${display}</td>`;
+      }
+    }
+    html += '</tr>';
+  }
+  document.getElementById('kernelGrid').innerHTML = html;
+}
+
+function renderOutputGrid() {
+  const out = computeOutput();
+  const oH = out.length, oW = out[0].length;
+  let html = '';
+  for (let r = 0; r < oH; r++) {
+    html += '<tr>';
+    for (let c = 0; c < oW; c++) {
+      const isCurrent = r === curR && c === curC;
+      html += `<td class="${isCurrent ? 'current' : ''}" style="${grayStyle(Math.abs(out[r][c]))}" onclick="setCurOutput(${r},${c})">${out[r][c]}</td>`;
+    }
+    html += '</tr>';
+  }
+  document.getElementById('outputGrid').innerHTML = html;
+  document.getElementById('outputTitle').textContent = `Output (${oW}x${oH})`;
+}
+
+function renderCalc() {
+  const img = getImage();
+  const sr = curR * stride, sc = curC * stride;
+  let terms = [], sum = 0;
+  for (let kr = 0; kr < 3; kr++) {
+    for (let kc = 0; kc < 3; kc++) {
+      const iv = img[sr + kr][sc + kc];
+      const kv = kernel[kr][kc];
+      const kvStr = Number.isInteger(kv) ? kv : kv.toFixed(2);
+      const prod = iv * kv;
+      terms.push(`${iv}x${kvStr}`);
+      sum += prod;
+    }
+  }
+  document.getElementById('calcBox').innerHTML =
+    `<span class="formula">${terms.join(' + ')}</span><br><span class="result">= ${Math.round(sum)}</span>`;
+}
+
+function updateInfo() {
+  const img = getImage();
+  const H = img.length, W = img[0].length;
+  const oH = Math.floor((H - 3) / stride) + 1;
+  const oW = Math.floor((W - 3) / stride) + 1;
+  document.getElementById('infoIn').textContent = `${W}x${H}`;
+  document.getElementById('infoStride').textContent = stride;
+  document.getElementById('infoPad').textContent = usePadding ? 'Same (1)' : 'Valid (0)';
+  document.getElementById('infoOut').textContent = `${oW}x${oH}`;
+}
+
+function render() {
+  renderInputGrid();
+  renderKernelGrid();
+  renderOutputGrid();
+  renderCalc();
+  updateInfo();
+}
+
+function setPos(r, c) {
+  const out = computeOutput();
+  curR = Math.min(Math.floor(r / stride), out.length - 1);
+  curC = Math.min(Math.floor(c / stride), out[0].length - 1);
+  curR = Math.max(0, curR);
+  curC = Math.max(0, curC);
+  render();
+}
+
+function setCurOutput(r, c) { curR = r; curC = c; render(); }
+
+function setKernel(r, c, val) { kernel[r][c] = parseFloat(val) || 0; render(); }
+
+function selectPreset(name) {
+  currentPreset = name;
+  kernel = kernelPresets[name].k.map(r => [...r]);
+  document.querySelectorAll('.kernel-buttons button').forEach(b => b.classList.toggle('active', b.textContent === name));
+  curR = 0; curC = 0;
+  render();
+}
+
+function toggleAnimate() {
+  if (animating) { clearInterval(animTimer); animating = false; document.getElementById('animateBtn').innerHTML = '&#9654; Animate'; return; }
+  animating = true;
+  document.getElementById('animateBtn').innerHTML = '&#9724; Stop';
+  curR = 0; curC = 0;
+  const out = computeOutput();
+  const oH = out.length, oW = out[0].length;
+  animTimer = setInterval(() => {
+    render();
+    curC++;
+    if (curC >= oW) { curC = 0; curR++; }
+    if (curR >= oH) { curR = 0; curC = 0; clearInterval(animTimer); animating = false; document.getElementById('animateBtn').innerHTML = '&#9654; Animate'; }
+  }, 300);
+}
+
+function togglePadding() {
+  usePadding = !usePadding;
+  document.getElementById('padBtn').textContent = usePadding ? 'Same' : 'Valid';
+  document.getElementById('padBtn').classList.toggle('active-toggle', usePadding);
+  curR = 0; curC = 0;
+  render();
+}
+
+// Init kernel buttons
+const btnContainer = document.getElementById('kernelBtns');
+Object.keys(kernelPresets).forEach(name => {
+  const b = document.createElement('button');
+  b.textContent = name;
+  b.onclick = () => selectPreset(name);
+  if (name === currentPreset) b.classList.add('active');
+  btnContainer.appendChild(b);
+});
+
+document.getElementById('strideSlider').addEventListener('input', e => {
+  stride = parseInt(e.target.value);
+  document.getElementById('strideVal').textContent = stride;
+  curR = 0; curC = 0;
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

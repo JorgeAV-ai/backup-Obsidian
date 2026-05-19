@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantization: Shrinking AI Models to Fit Your Computer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:1.5rem 1rem .5rem;font-size:clamp(1.3rem,3vw,2rem);background:linear-gradient(135deg,#89b4fa,#a6e3a1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:1rem;font-size:.95rem}
+main{flex:1;max-width:1100px;width:100%;margin:0 auto;padding:0 1rem 1rem}
+.section{background:#313244;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #45475a}
+.section h2{font-size:1.1rem;margin-bottom:.8rem;color:#89b4fa}
+
+/* Binary display */
+.binary-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.binary-table th{text-align:left;padding:.4rem .6rem;color:#a6adc8;border-bottom:1px solid #45475a;font-weight:500}
+.binary-table td{padding:.5rem .6rem;border-bottom:1px solid rgba(69,71,90,.5);vertical-align:middle}
+.binary-table tr.active-row{background:rgba(137,180,250,.1)}
+.bits{font-family:'Courier New',monospace;letter-spacing:1px;font-size:.85rem}
+.bits .bit-on{color:#a6e3a1}.bits .bit-off{color:#585b70}
+.precision-tag{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-weight:600;font-size:.75rem}
+.tag-fp32{background:rgba(166,227,161,.2);color:#a6e3a1}
+.tag-fp16{background:rgba(137,180,250,.2);color:#89b4fa}
+.tag-int8{background:rgba(249,226,175,.2);color:#f9e2af}
+.tag-int4{background:rgba(243,139,168,.2);color:#f38ba8}
+.error-badge{font-size:.7rem;padding:.1rem .4rem;border-radius:3px;margin-left:.3rem}
+.err-none{background:rgba(166,227,161,.15);color:#a6e3a1}
+.err-small{background:rgba(249,226,175,.15);color:#f9e2af}
+.err-more{background:rgba(243,139,168,.15);color:#f38ba8}
+
+/* Slider section */
+.slider-section{margin:1rem 0}
+.slider-labels{display:flex;justify-content:space-between;font-size:.7rem;color:#a6adc8;margin-bottom:.2rem}
+input[type=range]{-webkit-appearance:none;width:100%;height:8px;border-radius:4px;outline:none;background:linear-gradient(to right,#a6e3a1,#89b4fa,#f9e2af,#f38ba8)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#cdd6f4;cursor:pointer;border:3px solid #1e1e2e}
+
+/* Info cards */
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin-top:.8rem}
+.info-card{background:#181825;border-radius:8px;padding:.7rem;text-align:center;border:1px solid #45475a;transition:all .3s}
+.info-card.highlight{border-color:#a6e3a1;box-shadow:0 0 12px rgba(166,227,161,.2)}
+.info-card .label{font-size:.7rem;color:#a6adc8;margin-bottom:.2rem}
+.info-card .value{font-size:1.2rem;font-weight:700}
+
+/* Number line */
+.numberline-wrap{position:relative;height:80px;margin:1rem 0;background:#181825;border-radius:8px;overflow:hidden;border:1px solid #45475a}
+.nl-tick{position:absolute;bottom:0;width:2px;background:#45475a;transition:all .5s}
+.nl-tick.active{background:#a6e3a1}
+.nl-dot{position:absolute;width:8px;height:8px;border-radius:50%;transition:all .5s;top:10px}
+.nl-label{position:absolute;font-size:.6rem;color:#a6adc8;top:22px}
+.snap-arrow{position:absolute;font-size:.7rem;color:#f9e2af;transition:all .5s}
+
+/* Weight grid */
+.weight-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin:.6rem 0}
+.weight-cell{aspect-ratio:1;border-radius:3px;transition:background .4s;position:relative}
+.weight-cell::after{content:attr(data-err);position:absolute;font-size:.45rem;color:#1e1e2e;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;opacity:0;transition:opacity .3s}
+.weight-grid:hover .weight-cell::after{opacity:1}
+
+/* Calculator */
+.calc-row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin:.6rem 0}
+.calc-group{display:flex;flex-direction:column;gap:.2rem}
+.calc-group label{font-size:.75rem;color:#a6adc8}
+.calc-group select{background:#181825;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;padding:.4rem .6rem;font-size:.85rem;cursor:pointer}
+.calc-result{background:#181825;border-radius:10px;padding:.8rem;margin-top:.6rem;border:1px solid #45475a}
+.calc-result .ram{font-size:1.4rem;font-weight:700;color:#89b4fa}
+.calc-result .hw{font-size:.85rem;color:#a6adc8;margin-top:.3rem}
+.can-run{color:#a6e3a1;font-weight:600}.cannot-run{color:#f38ba8;font-weight:600}
+
+/* Quality bar */
+.quality-bar-wrap{margin:.4rem 0}
+.quality-bar-bg{height:18px;background:#45475a;border-radius:9px;overflow:hidden;position:relative}
+.quality-bar-fill{height:100%;border-radius:9px;transition:width .5s,background .5s;display:flex;align-items:center;padding-left:.5rem;font-size:.7rem;font-weight:600;color:#1e1e2e}
+
+footer{text-align:center;padding:1rem;color:#585b70;font-size:.75rem;border-top:1px solid #313244}
+
+@media(max-width:500px){.info-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<h1>Quantization: Shrinking AI Models to Fit Your Computer</h1>
+<p class="subtitle">Real Example: Running LLaMA on Different Devices</p>
+
+<main>
+<!-- Binary Representation -->
+<div class="section">
+  <h2>One Weight, Four Precisions</h2>
+  <p style="font-size:.85rem;color:#a6adc8;margin-bottom:.6rem">The value <strong style="color:#cdd6f4">0.0234375</strong> stored at different precisions:</p>
+  <table class="binary-table">
+    <thead><tr><th>Precision</th><th>Binary</th><th>Bits</th><th>Stored Value</th><th>Error</th></tr></thead>
+    <tbody id="binaryBody"></tbody>
+  </table>
+</div>
+
+<!-- Precision Slider -->
+<div class="section">
+  <h2>Drag to Change Precision &mdash; LLaMA 70B</h2>
+  <div class="slider-section">
+    <div class="slider-labels"><span>FP32 (Full)</span><span>FP16 (Half)</span><span>INT8</span><span>INT4</span></div>
+    <input type="range" id="precSlider" min="0" max="3" value="0" step="1">
+  </div>
+  <div class="info-grid">
+    <div class="info-card" id="cardSize"><div class="label">Model Size</div><div class="value" id="valSize">280 GB</div></div>
+    <div class="info-card" id="cardDevice"><div class="label">Runs On</div><div class="value" id="valDevice" style="font-size:.85rem">8x A100 Cluster</div></div>
+    <div class="info-card" id="cardQuality"><div class="label">Quality</div><div class="value" id="valQuality">100%</div></div>
+    <div class="info-card" id="cardSpeed"><div class="label">Speed</div><div class="value" id="valSpeed">1x</div></div>
+  </div>
+  <div class="quality-bar-wrap">
+    <div class="quality-bar-bg"><div class="quality-bar-fill" id="qualBar" style="width:100%;background:#a6e3a1">100% quality</div></div>
+  </div>
+</div>
+
+<!-- Number Line -->
+<div class="section">
+  <h2>How Quantization Snaps Values to a Grid</h2>
+  <p style="font-size:.85rem;color:#a6adc8;margin-bottom:.6rem">More bits = finer grid = less error. Watch the dots snap to their nearest grid line:</p>
+  <div class="slider-labels"><span>FP32</span><span>FP16</span><span>INT8</span><span>INT4</span></div>
+  <input type="range" id="nlSlider" min="0" max="3" value="0" step="1" style="width:100%;margin-bottom:.4rem">
+  <div class="numberline-wrap" id="numberLine"></div>
+</div>
+
+<!-- Weight Grid -->
+<div class="section">
+  <h2>100 Weights: Quantization Error Heatmap</h2>
+  <p style="font-size:.85rem;color:#a6adc8;margin-bottom:.4rem">Green = low error, Red = high error. Hover to see values.</p>
+  <div class="slider-labels"><span>FP32</span><span>FP16</span><span>INT8</span><span>INT4</span></div>
+  <input type="range" id="heatSlider" min="0" max="3" value="0" step="1" style="width:100%;margin-bottom:.4rem">
+  <div class="weight-grid" id="weightGrid"></div>
+</div>
+
+<!-- Calculator -->
+<div class="section">
+  <h2>"Can I Run It?" Calculator</h2>
+  <div class="calc-row">
+    <div class="calc-group">
+      <label>Model Size</label>
+      <select id="calcModel"><option value="7">7B</option><option value="13">13B</option><option value="70" selected>70B</option></select>
+    </div>
+    <div class="calc-group">
+      <label>Precision</label>
+      <select id="calcPrec"><option value="fp32">FP32</option><option value="fp16">FP16</option><option value="int8">INT8</option><option value="int4">INT4</option></select>
+    </div>
+  </div>
+  <div class="calc-result" id="calcResult"></div>
+</div>
+</main>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+// Binary table
+const precisions = [
+  {name:'FP32', tag:'tag-fp32', bits:'00111100 01000000 00000000 00000000', n:32, val:'0.0234375', err:'EXACT', errcls:'err-none'},
+  {name:'FP16', tag:'tag-fp16', bits:'0101 1110 0000 0000', n:16, val:'0.0234375', err:'~0%', errcls:'err-none'},
+  {name:'INT8', tag:'tag-int8', bits:'00000110', n:8, val:'~0.024', err:'slight', errcls:'err-small'},
+  {name:'INT4', tag:'tag-int4', bits:'0001', n:4, val:'~0.03', err:'more', errcls:'err-more'}
+];
+const bb = document.getElementById('binaryBody');
+precisions.forEach((p,i) => {
+  const tr = document.createElement('tr');
+  tr.id = 'brow'+i;
+  const bitsHtml = p.bits.split('').map(b => b === ' ' ? ' ' : `<span class="bit-${b==='1'?'on':'off'}">${b}</span>`).join('');
+  tr.innerHTML = `<td><span class="precision-tag ${p.tag}">${p.name}</span></td><td class="bits">${bitsHtml}</td><td>${p.n}</td><td>${p.val}</td><td><span class="error-badge ${p.errcls}">${p.err}</span></td>`;
+  bb.appendChild(tr);
+});
+
+// Precision slider data
+const sliderData = [
+  {size:'280 GB', device:'8x A100 Cluster', quality:100, speed:'1x', color:'#a6e3a1'},
+  {size:'140 GB', device:'2x A100 or 4x RTX 4090', quality:99.9, speed:'1.8x', color:'#89b4fa'},
+  {size:'70 GB', device:'1x A100 or Mac Studio', quality:99, speed:'2.5x', color:'#f9e2af'},
+  {size:'35 GB', device:'Your MacBook Pro &#128187;', quality:97, speed:'3.5x', color:'#f38ba8'}
+];
+const precSlider = document.getElementById('precSlider');
+function updatePrecSlider() {
+  const d = sliderData[precSlider.value];
+  document.getElementById('valSize').textContent = d.size;
+  document.getElementById('valDevice').innerHTML = d.device;
+  document.getElementById('valQuality').textContent = d.quality + '%';
+  document.getElementById('valSpeed').textContent = d.speed;
+  const bar = document.getElementById('qualBar');
+  bar.style.width = d.quality + '%';
+  bar.style.background = d.color;
+  bar.textContent = d.quality + '% quality';
+  document.querySelectorAll('#binaryBody tr').forEach((tr,i) => {
+    tr.className = i == precSlider.value ? 'active-row' : '';
+  });
+  document.querySelectorAll('.info-card').forEach(c => c.classList.remove('highlight'));
+  document.getElementById('cardSize').classList.add('highlight');
+}
+precSlider.addEventListener('input', updatePrecSlider);
+updatePrecSlider();
+
+// Number line
+const NL_W = 700;
+const sampleValues = [0.05, 0.18, 0.32, 0.47, 0.61, 0.78, 0.89];
+const gridCounts = [64, 32, 16, 8]; // approximate grid ticks for each precision
+
+function drawNumberLine() {
+  const wrap = document.getElementById('numberLine');
+  const w = wrap.clientWidth || 500;
+  wrap.innerHTML = '';
+  const idx = parseInt(document.getElementById('nlSlider').value);
+  const gc = gridCounts[idx];
+  // Draw grid ticks
+  for (let i = 0; i <= gc; i++) {
+    const x = (i / gc) * (w - 20) + 10;
+    const tick = document.createElement('div');
+    tick.className = 'nl-tick';
+    tick.style.left = x + 'px';
+    tick.style.height = '40px';
+    tick.style.bottom = '0';
+    wrap.appendChild(tick);
+  }
+  // Draw dots snapping to nearest grid
+  sampleValues.forEach(v => {
+    const exactX = v * (w - 20) + 10;
+    const step = (w - 20) / gc;
+    const snappedI = Math.round((exactX - 10) / step);
+    const snappedX = snappedI * step + 10;
+    // Dot at snapped position
+    const dot = document.createElement('div');
+    dot.className = 'nl-dot';
+    dot.style.left = (snappedX - 4) + 'px';
+    dot.style.background = idx <= 1 ? '#a6e3a1' : idx === 2 ? '#f9e2af' : '#f38ba8';
+    wrap.appendChild(dot);
+    // Error line
+    if (Math.abs(exactX - snappedX) > 2) {
+      const line = document.createElement('div');
+      line.style.cssText = `position:absolute;top:14px;height:2px;background:#f38ba8;opacity:.6;transition:all .5s`;
+      line.style.left = Math.min(exactX, snappedX) + 'px';
+      line.style.width = Math.abs(exactX - snappedX) + 'px';
+      wrap.appendChild(line);
+    }
+  });
+}
+document.getElementById('nlSlider').addEventListener('input', drawNumberLine);
+window.addEventListener('resize', drawNumberLine);
+setTimeout(drawNumberLine, 50);
+
+// Weight grid heatmap
+const weights = Array.from({length:100}, () => Math.random());
+const errorLevels = [0, 0.002, 0.02, 0.08]; // max error per precision
+
+function drawWeightGrid() {
+  const grid = document.getElementById('weightGrid');
+  const idx = parseInt(document.getElementById('heatSlider').value);
+  grid.innerHTML = '';
+  weights.forEach(w => {
+    const cell = document.createElement('div');
+    cell.className = 'weight-cell';
+    const err = idx === 0 ? 0 : (Math.random() * errorLevels[idx]);
+    const errNorm = Math.min(err / 0.08, 1);
+    const r = Math.round(40 + errNorm * 200);
+    const g = Math.round(200 - errNorm * 160);
+    const b = Math.round(80 + (1 - errNorm) * 80);
+    cell.style.background = `rgb(${r},${g},${b})`;
+    cell.setAttribute('data-err', (err * 100).toFixed(1) + '%');
+    grid.appendChild(cell);
+  });
+}
+document.getElementById('heatSlider').addEventListener('input', drawWeightGrid);
+drawWeightGrid();
+
+// Calculator
+function updateCalc() {
+  const B = parseInt(document.getElementById('calcModel').value);
+  const prec = document.getElementById('calcPrec').value;
+  const bitsMap = {fp32:32, fp16:16, int8:8, int4:4};
+  const bits = bitsMap[prec];
+  const ram = (B * bits / 8).toFixed(1);
+  const overhead = (parseFloat(ram) * 1.2).toFixed(1);
+
+  let hw = '', canRun = '';
+  const total = parseFloat(overhead);
+  if (total <= 8) { hw = 'Laptop with 8GB RAM / iPhone 15 Pro'; canRun = 'can-run'; }
+  else if (total <= 16) { hw = 'MacBook Air M2 / RTX 3060 12GB'; canRun = 'can-run'; }
+  else if (total <= 24) { hw = 'MacBook Pro M3 / RTX 4090 24GB'; canRun = 'can-run'; }
+  else if (total <= 48) { hw = 'Mac Studio M2 Ultra / 2x RTX 4090'; canRun = 'can-run'; }
+  else if (total <= 96) { hw = 'Mac Pro M2 Ultra 192GB / 4x A100'; canRun = 'can-run'; }
+  else if (total <= 200) { hw = 'Multi-GPU server (4-8x A100 80GB)'; canRun = 'cannot-run'; }
+  else { hw = 'Large HPC cluster (8x A100 80GB+)'; canRun = 'cannot-run'; }
+
+  const res = document.getElementById('calcResult');
+  const icon = canRun === 'can-run' ? '&#9989;' : '&#10060;';
+  res.innerHTML = `<div><strong>${B}B model at ${prec.toUpperCase()}</strong></div>
+    <div class="ram">${ram} GB weights + ~${(total - parseFloat(ram)).toFixed(1)} GB overhead = ${overhead} GB RAM needed</div>
+    <div class="hw" style="margin-top:.4rem">${icon} <span class="${canRun}">Suggested hardware: ${hw}</span></div>`;
+}
+document.getElementById('calcModel').addEventListener('change', updateCalc);
+document.getElementById('calcPrec').addEventListener('change', updateCalc);
+updateCalc();
+</script>
+</body>
+</html>

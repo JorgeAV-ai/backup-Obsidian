@@ -1,0 +1,236 @@
+{
+  "main": {
+    "id": "5d25cc88e5cfc59c",
+    "type": "split",
+    "children": [
+      {
+        "id": "7cb020230f001a00",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "7958fe2c0b2f72a6",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Blog-research/Applications of Reinforcement Learning in Current Frontier LLM Models.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Applications of Reinforcement Learning in Current Frontier LLM Models"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "609bf31e1405b2a5",
+    "type": "split",
+    "children": [
+      {
+        "id": "107227bfe67db90c",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "4d227a0082483716",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": true
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "482e1248288d4775",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "b9062cbf5bacd652",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 341.5
+  },
+  "right": {
+    "id": "94be26fc4b7a201c",
+    "type": "split",
+    "children": [
+      {
+        "id": "a1297a7b75068725",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "e5ff56eda84d422b",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Blog-research/Quantizating LLMs, How it works and what you should be concerned about.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Quantizating LLMs, How it works and what you should be concerned about"
+            }
+          },
+          {
+            "id": "e3633ea5c0ee0361",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Blog-research/Quantizating LLMs, How it works and what you should be concerned about.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Quantizating LLMs, How it works and what you should be concerned about"
+            }
+          },
+          {
+            "id": "b3dee4d4f7d2fea0",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "26fbdf7d914de5f5",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "8341e1700cf187ea",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Blog-research/Quantizating LLMs, How it works and what you should be concerned about.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Quantizating LLMs, How it works and what you should be concerned about"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "7958fe2c0b2f72a6",
+  "lastOpenFiles": [
+    "Maps/Vault Map.md",
+    "Maps/Retrieval.md",
+    "Maps/Natural Language Processing.md",
+    "Maps/Large Language Models.md",
+    "Maps/Efficient Transformers.md",
+    "Maps/Document AI.md",
+    "Maps/Computer Vision.md",
+    "Maps/Attention.md",
+    "Maps",
+    "Concepts/Math/Unpadding.md",
+    "Concepts/Math/Beam Search.md",
+    "Concepts/Math/Autoregressive Generation.md",
+    "Concepts/Math/Tokenization (BPE).md",
+    "Concepts/Math/Contrastive Learning.md",
+    "Concepts/Math/CKA.md",
+    "Concepts/Math/GeGLU.md",
+    "Concepts/Math/ReLU.md",
+    "Concepts/Math/GELU.md",
+    "Concepts/Math/Softmax.md",
+    "Concepts/Compression/LoRA.md",
+    "Concepts/Compression/Quantization.md",
+    "Concepts/Retrieval/Embeddings.md",
+    "Concepts/Retrieval/DiskANN.md",
+    "Concepts/Retrieval/Dense Retrieval.md",
+    "Concepts/Retrieval/RAG.md",
+    "Concepts/Architecture/MoE.md",
+    "Concepts/Architecture/ECA.md",
+    "Concepts/Training",
+    "Concepts/Retrieval",
+    "Concepts/Math",
+    "Concepts/Compression",
+    "Concepts/Attention",
+    "Concepts/Architecture",
+    "Concepts",
+    "Papers/Natural Language Processing",
+    "Papers/Large Language Models",
+    "misc/grpo_comparison_english.png",
+    "misc/rl_frontier_comparison_table.png",
+    "ChatGPT Image May 19, 2026, 01_59_42 PM.png",
+    "ChatGPT Image May 19, 2026, 01_59_05 PM.png",
+    "ChatGPT Image May 19, 2026, 01_30_46 PM.png",
+    "ChatGPT Image May 19, 2026, 01_21_22 PM.png",
+    "ChatGPT Image May 19, 2026, 12_56_14 PM.png",
+    "ChatGPT Image May 19, 2026, 12_50_56 PM.png",
+    "ChatGPT Image May 19, 2026, 12_45_21 PM.png",
+    "ChatGPT Image May 18, 2026, 12_15_38 AM.png",
+    "Untitled.canvas"
+  ]
+}

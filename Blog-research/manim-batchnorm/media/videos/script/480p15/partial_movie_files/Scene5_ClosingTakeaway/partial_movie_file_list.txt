@@ -1,0 +1,6 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene5_ClosingTakeaway/4032159847_1723082290_2358810818.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene5_ClosingTakeaway/3753229454_870376299_3009929919.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene5_ClosingTakeaway/3753229454_95173422_2655338062.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene5_ClosingTakeaway/3753229454_2574125926_800563041.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene5_ClosingTakeaway/3753229454_3877907558_1219215196.mp4'

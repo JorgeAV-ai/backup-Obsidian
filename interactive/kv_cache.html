@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KV-Cache: Why ChatGPT Doesn't Start Over Each Word</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:1.5rem;font-size:1.7rem;background:linear-gradient(135deg,#f38ba8,#fab387,#a6e3a1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+h2{color:#89b4fa;font-size:1.05rem;margin-bottom:.6rem}
+h3{color:#cba6f7;font-size:.95rem;margin-bottom:.5rem}
+.container{max-width:1100px;margin:0 auto;padding:0 1.5rem 2rem;flex:1;width:100%}
+.card{background:#313244;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #45475a}
+.side-by-side{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:750px){.side-by-side{grid-template-columns:1fr}}
+.panel{background:#181825;border-radius:10px;padding:1rem;border:1px solid #45475a}
+.panel.naive{border-top:3px solid #f38ba8}
+.panel.cached{border-top:3px solid #a6e3a1}
+.panel h3{display:flex;align-items:center;gap:.5rem}
+.token-grid{margin:.8rem 0}
+.gen-row{display:flex;align-items:center;gap:4px;margin:4px 0;min-height:28px}
+.gen-row .row-label{font-size:.7rem;color:#6c7086;min-width:22px;text-align:right}
+.cell{width:42px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:600;transition:all .3s;opacity:0;transform:scale(.7)}
+.cell.show{opacity:1;transform:scale(1)}
+.cell.recompute{background:#f38ba833;border:1px solid #f38ba8;color:#f38ba8}
+.cell.new-compute{background:#a6e3a133;border:1px solid #a6e3a1;color:#a6e3a1}
+.cell.cached{background:#89b4fa22;border:1px solid #89b4fa;color:#89b4fa}
+.cell.idle{background:#45475a33;border:1px solid #45475a;color:#585b70}
+.word-labels{display:flex;gap:4px;margin-left:26px;margin-bottom:2px}
+.word-labels span{width:42px;text-align:center;font-size:.65rem;color:#a6adc8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.controls{display:flex;flex-wrap:wrap;gap:.8rem;align-items:center;margin:1rem 0;justify-content:center}
+.btn{background:#89b4fa;color:#1e1e2e;border:none;border-radius:8px;padding:.6rem 1.2rem;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s}
+.btn:hover{opacity:.85;transform:translateY(-1px)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn.accent{background:#a6e3a1}
+.btn.warn{background:#f38ba8}
+.btn.secondary{background:#cba6f7}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem;margin:1rem 0}
+.stat{background:#45475a;border-radius:8px;padding:.7rem;text-align:center}
+.stat .num{font-size:1.4rem;font-weight:700}
+.stat .label{font-size:.7rem;color:#a6adc8;margin-top:.2rem}
+.stat.red .num{color:#f38ba8}
+.stat.green .num{color:#a6e3a1}
+.stat.blue .num{color:#89b4fa}
+.stat.purple .num{color:#cba6f7}
+.stat.orange .num{color:#fab387}
+.bar-container{margin:.8rem 0}
+.bar-row{display:flex;align-items:center;gap:.6rem;margin:.5rem 0}
+.bar-label{font-size:.8rem;min-width:80px;color:#a6adc8}
+.bar-track{flex:1;height:24px;background:#45475a;border-radius:6px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:6px;transition:width .5s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:.7rem;font-weight:600;min-width:fit-content}
+.bar-fill.red{background:linear-gradient(90deg,#f38ba866,#f38ba8)}
+.bar-fill.green{background:linear-gradient(90deg,#a6e3a166,#a6e3a1);color:#1e1e2e}
+.bar-fill.blue{background:linear-gradient(90deg,#89b4fa66,#89b4fa);color:#1e1e2e}
+.memory-bar{margin-top:.5rem}
+.explanation{background:#181825;border-radius:8px;padding:1rem;font-size:.88rem;line-height:1.6;color:#bac2de;border-left:3px solid #89b4fa;margin:.8rem 0}
+.analogy{background:#181825;border-radius:8px;padding:1rem;font-size:.88rem;line-height:1.6;color:#bac2de;border-left:3px solid #cba6f7;margin:.8rem 0}
+.legend{display:flex;flex-wrap:wrap;gap:1rem;margin:.8rem 0;font-size:.8rem}
+.legend span{display:flex;align-items:center;gap:4px}
+.legend .dot{width:12px;height:12px;border-radius:3px}
+.sentence-display{display:flex;flex-wrap:wrap;gap:6px;margin:.8rem 0;font-size:1.1rem;min-height:36px}
+.sentence-display .word{padding:4px 10px;border-radius:6px;transition:all .3s}
+.sentence-display .word.generated{background:#a6e3a122;border:1px solid #a6e3a1;color:#a6e3a1}
+.sentence-display .word.pending{background:#45475a44;border:1px solid #45475a;color:#585b70}
+footer{text-align:center;padding:1.2rem;color:#6c7086;font-size:.8rem;border-top:1px solid #313244;margin-top:auto}
+</style>
+</head>
+<body>
+<h1>KV-Cache: Why ChatGPT Doesn't Start Over Each Word</h1>
+<div class="container">
+
+<div class="card">
+<h2>Generating: "Madrid is the capital of Spain"</h2>
+<div class="sentence-display" id="sentence-display"></div>
+<div class="controls">
+<button class="btn" id="btn-next" onclick="generateNext()">Generate Next Word</button>
+<button class="btn accent" id="btn-auto" onclick="toggleAuto()">Auto-generate</button>
+<button class="btn warn" onclick="resetAll()">Reset</button>
+</div>
+<div class="legend">
+<span><div class="dot" style="background:#f38ba8"></div> Wasted recomputation</span>
+<span><div class="dot" style="background:#a6e3a1"></div> New computation</span>
+<span><div class="dot" style="background:#89b4fa"></div> Retrieved from cache</span>
+</div>
+</div>
+
+<div class="card">
+<div class="side-by-side">
+<div class="panel naive">
+<h3><span style="color:#f38ba8">&#x2716;</span> Without Cache (Naive)</h3>
+<p style="font-size:.78rem;color:#a6adc8;margin-bottom:.5rem">Every new word reprocesses ALL previous words</p>
+<div class="word-labels" id="wl-naive"></div>
+<div class="token-grid" id="grid-naive"></div>
+</div>
+<div class="panel cached">
+<h3><span style="color:#a6e3a1">&#x2714;</span> With KV-Cache</h3>
+<p style="font-size:.78rem;color:#a6adc8;margin-bottom:.5rem">Only the NEW word is computed; previous K,V retrieved from cache</p>
+<div class="word-labels" id="wl-cache"></div>
+<div class="token-grid" id="grid-cache"></div>
+</div>
+</div>
+</div>
+
+<div class="card">
+<h2>Running Totals</h2>
+<div class="stats-row">
+<div class="stat red"><div class="num" id="s-naive">0</div><div class="label">Naive computations</div></div>
+<div class="stat green"><div class="num" id="s-cache">0</div><div class="label">Cache computations</div></div>
+<div class="stat blue"><div class="num" id="s-retrieved">0</div><div class="label">Cache retrievals</div></div>
+<div class="stat purple"><div class="num" id="s-saved">0%</div><div class="label">Computation saved</div></div>
+</div>
+
+<h2 style="margin-top:1rem">Speed Comparison</h2>
+<div class="bar-container">
+<div class="bar-row">
+<span class="bar-label">Naive</span>
+<div class="bar-track"><div class="bar-fill red" id="bar-naive" style="width:0%"></div></div>
+</div>
+<div class="bar-row">
+<span class="bar-label">KV-Cache</span>
+<div class="bar-track"><div class="bar-fill green" id="bar-cache" style="width:0%"></div></div>
+</div>
+</div>
+
+<h2 style="margin-top:1rem">Cache Memory Usage</h2>
+<div class="bar-container memory-bar">
+<div class="bar-row">
+<span class="bar-label">KV stored</span>
+<div class="bar-track"><div class="bar-fill blue" id="bar-memory" style="width:0%">0 KB</div></div>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="analogy">
+<strong>Analogy:</strong><br>
+<strong>Without cache:</strong> Re-reading the <em>entire book</em> every time you turn a page. By page 100, you have re-read 5,050 pages total.<br><br>
+<strong>With cache:</strong> Bookmarking where you left off. You only read each new page once. By page 100, you have read exactly 100 pages.
+</div>
+<div class="explanation" style="margin-top:.8rem">
+<strong>How it works:</strong> In a Transformer, each token produces a Key (K) and Value (V) vector during attention. Without caching, generating token N requires recomputing K and V for all N tokens. With KV-Cache, previously computed K and V are stored in memory, so only the new token's K and V need to be computed. The trade-off: more memory usage for dramatically less computation.
+</div>
+</div>
+
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const WORDS = ['Madrid','is','the','capital','of','Spain'];
+let currentStep = 0;
+let naiveTotal = 0, cacheTotal = 0, cacheRetrievals = 0;
+let autoInterval = null, autoRunning = false;
+
+function initSentence(){
+  const el = document.getElementById('sentence-display');
+  el.innerHTML = '';
+  WORDS.forEach((w,i)=>{
+    const span = document.createElement('span');
+    span.className = 'word pending';
+    span.textContent = w;
+    span.id = 'word-'+i;
+    el.appendChild(span);
+  });
+}
+
+function renderWordLabels(){
+  const n = currentStep;
+  ['wl-naive','wl-cache'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    for(let i=0;i<n;i++){
+      const s = document.createElement('span');
+      s.textContent = WORDS[i];
+      el.appendChild(s);
+    }
+  });
+}
+
+function renderGrids(){
+  const gNaive = document.getElementById('grid-naive');
+  const gCache = document.getElementById('grid-cache');
+  gNaive.innerHTML = '';
+  gCache.innerHTML = '';
+
+  for(let step=1; step<=currentStep; step++){
+    // Naive row
+    const rowN = document.createElement('div');
+    rowN.className = 'gen-row';
+    const lblN = document.createElement('span');
+    lblN.className = 'row-label';
+    lblN.textContent = '#'+step;
+    rowN.appendChild(lblN);
+    for(let i=0;i<step;i++){
+      const cell = document.createElement('div');
+      cell.className = 'cell recompute';
+      cell.textContent = WORDS[i].slice(0,4);
+      rowN.appendChild(cell);
+    }
+    gNaive.appendChild(rowN);
+
+    // Cache row
+    const rowC = document.createElement('div');
+    rowC.className = 'gen-row';
+    const lblC = document.createElement('span');
+    lblC.className = 'row-label';
+    lblC.textContent = '#'+step;
+    rowC.appendChild(lblC);
+    for(let i=0;i<step;i++){
+      const cell = document.createElement('div');
+      if(i < step-1){
+        cell.className = 'cell cached';
+        cell.textContent = WORDS[i].slice(0,4);
+      } else {
+        cell.className = 'cell new-compute';
+        cell.textContent = WORDS[i].slice(0,4);
+      }
+      rowC.appendChild(cell);
+    }
+    gCache.appendChild(rowC);
+  }
+
+  // Animate cells appearing
+  setTimeout(()=>{
+    document.querySelectorAll('.cell').forEach((c,i)=>{
+      setTimeout(()=>c.classList.add('show'), i*40);
+    });
+  },10);
+}
+
+function updateStats(){
+  document.getElementById('s-naive').textContent = naiveTotal;
+  document.getElementById('s-cache').textContent = cacheTotal;
+  document.getElementById('s-retrieved').textContent = cacheRetrievals;
+  const saved = naiveTotal > 0 ? ((1 - cacheTotal/naiveTotal)*100).toFixed(0) : 0;
+  document.getElementById('s-saved').textContent = saved + '%';
+
+  // Bars
+  const maxComp = WORDS.length * (WORDS.length+1) / 2; // max naive = 21
+  document.getElementById('bar-naive').style.width = (naiveTotal/maxComp*100)+'%';
+  document.getElementById('bar-naive').textContent = naiveTotal + ' ops';
+  document.getElementById('bar-cache').style.width = (cacheTotal/maxComp*100)+'%';
+  document.getElementById('bar-cache').textContent = cacheTotal + ' ops';
+
+  // Memory bar (each cached KV pair ~ 2KB for illustration)
+  const cachedTokens = currentStep;
+  const memKB = cachedTokens * 2;
+  const maxMem = WORDS.length * 2;
+  document.getElementById('bar-memory').style.width = (memKB/maxMem*100)+'%';
+  document.getElementById('bar-memory').textContent = memKB + ' KB';
+}
+
+function generateNext(){
+  if(currentStep >= WORDS.length) return;
+  currentStep++;
+
+  // Mark word as generated
+  const wordEl = document.getElementById('word-'+(currentStep-1));
+  wordEl.classList.remove('pending');
+  wordEl.classList.add('generated');
+
+  // Update totals
+  naiveTotal += currentStep; // recomputes all tokens
+  cacheTotal += 1; // only new token
+  cacheRetrievals += (currentStep - 1);
+
+  renderWordLabels();
+  renderGrids();
+  updateStats();
+
+  if(currentStep >= WORDS.length){
+    document.getElementById('btn-next').disabled = true;
+    if(autoRunning) toggleAuto();
+  }
+}
+
+function toggleAuto(){
+  autoRunning = !autoRunning;
+  const btn = document.getElementById('btn-auto');
+  if(autoRunning){
+    btn.textContent = 'Stop';
+    autoInterval = setInterval(()=>{
+      if(currentStep >= WORDS.length){toggleAuto();return}
+      generateNext();
+    }, 800);
+  } else {
+    btn.textContent = 'Auto-generate';
+    clearInterval(autoInterval);
+  }
+}
+
+function resetAll(){
+  if(autoRunning) toggleAuto();
+  currentStep = 0;
+  naiveTotal = 0;
+  cacheTotal = 0;
+  cacheRetrievals = 0;
+  document.getElementById('btn-next').disabled = false;
+  initSentence();
+  renderWordLabels();
+  document.getElementById('grid-naive').innerHTML = '';
+  document.getElementById('grid-cache').innerHTML = '';
+  updateStats();
+}
+
+// Init
+initSentence();
+updateStats();
+</script>
+</body>
+</html>

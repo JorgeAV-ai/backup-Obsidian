@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swin Transformer: How a Model Sees an Image</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 20px;
+  }
+  h1 { color: #cba6f7; font-size: 1.6rem; margin-bottom: 4px; text-align: center; }
+  .subtitle { color: #a6adc8; font-size: 0.88rem; margin-bottom: 16px; text-align: center; max-width: 700px; }
+
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+    margin-bottom: 10px; width: 100%; max-width: 900px;
+  }
+  button {
+    background: #313244; color: #cdd6f4; border: 1px solid #45475a;
+    padding: 8px 18px; border-radius: 8px; font-size: 0.88rem; cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  button:hover { background: #45475a; border-color: #cba6f7; }
+  button.active { background: #585b70; border-color: #cba6f7; }
+  .slider-group { display: flex; align-items: center; gap: 8px; }
+  .slider-group label { font-size: 0.85rem; color: #a6adc8; white-space: nowrap; }
+  input[type=range] {
+    -webkit-appearance: none; width: 110px; height: 6px;
+    background: #45475a; border-radius: 3px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px;
+    background: #cba6f7; border-radius: 50%; cursor: pointer;
+  }
+
+  .info-bar {
+    text-align: center; font-size: 0.88rem; margin: 6px 0 10px;
+    color: #a6e3a1; min-height: 44px; max-width: 900px; line-height: 1.5;
+  }
+
+  .main-area {
+    display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;
+    width: 100%; max-width: 1100px; margin-bottom: 14px;
+  }
+  .canvas-panel {
+    background: #181825; border: 1px solid #313244; border-radius: 12px;
+    padding: 16px; display: flex; flex-direction: column; align-items: center;
+    flex: 1 1 440px; max-width: 540px;
+  }
+  .canvas-panel h3 { color: #89b4fa; font-size: 0.95rem; margin-bottom: 8px; text-align: center; }
+  canvas { border-radius: 8px; cursor: crosshair; display: block; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+    margin: 10px 0 8px; font-size: 0.78rem; color: #a6adc8;
+    width: 100%; max-width: 900px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-swatch { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #585b70; }
+
+  .explanation {
+    display: flex; flex-wrap: wrap; gap: 14px; width: 100%; max-width: 1100px; margin-bottom: 14px;
+  }
+  .explain-card {
+    background: #181825; border: 1px solid #313244; border-radius: 10px;
+    padding: 14px 18px; flex: 1 1 300px; line-height: 1.6; font-size: 0.85rem;
+  }
+  .explain-card h4 { margin-bottom: 6px; font-size: 0.95rem; }
+  .explain-card .hl { color: #f9e2af; font-weight: 600; }
+  .explain-card .red { color: #f38ba8; }
+  .explain-card .green { color: #a6e3a1; }
+  .explain-card .blue { color: #89b4fa; }
+  .explain-card .gold { color: #f9e2af; }
+
+  .info-panel {
+    background: #181825; border: 1px solid #313244; border-radius: 10px;
+    padding: 14px 18px; width: 100%; max-width: 1100px; margin-bottom: 14px;
+    text-align: center; font-size: 0.88rem; line-height: 1.6;
+  }
+  .info-panel .hl { color: #f9e2af; font-weight: 600; }
+  .info-panel .blue { color: #89b4fa; }
+
+  footer { margin-top: 16px; font-size: 0.75rem; color: #585b70; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>Swin Transformer: How a Model Sees an Image</h1>
+<p class="subtitle">A simple house image shows how shifted windows let pixels "see" across boundaries -- connecting the roof to the walls.</p>
+
+<div class="controls">
+  <button id="btnRegular" class="active">Layer l (Regular Windows)</button>
+  <button id="btnShifted">Layer l+1 (Shifted Windows)</button>
+  <button id="btnAnimate">Animate Transition</button>
+  <div class="slider-group">
+    <label>Window size M =</label>
+    <input type="range" id="winSlider" min="0" max="2" value="1" step="1">
+    <span id="winLabel" style="color:#f9e2af;font-weight:600;">4</span>
+  </div>
+</div>
+
+<div class="info-bar" id="infoBar">Hover over any pixel to see what it can attend to in its window.</div>
+
+<div class="main-area">
+  <div class="canvas-panel">
+    <h3 id="layerTitle">Layer l -- Regular Windows</h3>
+    <canvas id="grid" width="520" height="520"></canvas>
+  </div>
+  <div class="canvas-panel" id="descPanel">
+    <h3>What Each Window Sees</h3>
+    <div id="windowDescs" style="font-size:0.85rem;line-height:1.7;text-align:left;width:100%;"></div>
+  </div>
+</div>
+
+<div class="legend" id="legend"></div>
+
+<div class="explanation">
+  <div class="explain-card">
+    <h4 style="color:#f38ba8;">The Problem with Regular Windows</h4>
+    The roof-wall boundary is <span class="red">SPLIT between windows</span>. Pixels at row 3 (bottom of Window 0) cannot see row 4 (top of Window 2).<br><br>
+    The chimney top and the wall below it are in <span class="red">different windows</span> -- the model sees them as unrelated!
+  </div>
+  <div class="explain-card">
+    <h4 style="color:#a6e3a1;">The Fix: Shifted Windows</h4>
+    In the next layer, windows shift by M/2 pixels. Now boundary pixels <span class="green">CAN see across</span>.<br><br>
+    The roof connects to the wall. The chimney connects to the roofline. <span class="gold">New connections</span> (shown in gold) bridge what was previously split.
+  </div>
+</div>
+
+<div class="info-panel" id="scopeBox">
+  <span class="hl">M=4:</span> Each pixel attends to <span class="blue">16 neighbors</span> in its window.
+  <span class="hl">Global attention:</span> each pixel would see ALL <span class="blue">64 pixels</span> but costs <span class="hl">64x more compute</span>.
+  Swin gets global coverage in 2 layers (regular + shifted) at a fraction of the cost.
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+(() => {
+  const GRID = 8;
+  const SIZES = [2, 4, 8];
+
+  // --- 8x8 pixel art: a simple house ---
+  // Colors: sky=#89b4fa, roof=#f38ba8, wall=#f9e2af, door=#94e2d5, window=#313244, chimney=#cba6f7, grass=#a6e3a1
+  const SKY = '#89b4fa', ROOF = '#f38ba8', WALL = '#f9e2af', DOOR = '#94e2d5', WIN = '#45475a', CHIMNEY = '#cba6f7', GRASS = '#a6e3a1', GROUND = '#585b70';
+
+  const housePixels = [
+    [SKY,    SKY,    CHIMNEY, SKY,    SKY,    SKY,    SKY,    SKY   ],  // row 0: sky + chimney
+    [SKY,    SKY,    CHIMNEY, ROOF,   ROOF,   ROOF,   SKY,    SKY   ],  // row 1: chimney + roof peak
+    [SKY,    ROOF,   ROOF,   ROOF,   ROOF,   ROOF,   ROOF,   SKY   ],  // row 2: roof wide
+    [ROOF,   ROOF,   ROOF,   ROOF,   ROOF,   ROOF,   ROOF,   ROOF  ],  // row 3: roof full
+    [WALL,   WALL,   WIN,    WALL,   WALL,   WIN,    WALL,   WALL  ],  // row 4: wall + windows
+    [WALL,   WALL,   WIN,    WALL,   WALL,   WIN,    WALL,   WALL  ],  // row 5: wall + windows
+    [WALL,   WALL,   WALL,   DOOR,   DOOR,   WALL,   WALL,   WALL  ],  // row 6: wall + door
+    [GROUND, GROUND, GRASS,  GRASS,  GRASS,  GRASS,  GROUND, GROUND],  // row 7: ground + grass
+  ];
+
+  // Pixel labels for hover context
+  const pixelLabels = [
+    ['sky','sky','chimney','sky','sky','sky','sky','sky'],
+    ['sky','sky','chimney','roof','roof','roof','sky','sky'],
+    ['sky','roof','roof','roof','roof','roof','roof','sky'],
+    ['roof','roof','roof','roof','roof','roof','roof','roof'],
+    ['wall','wall','window','wall','wall','window','wall','wall'],
+    ['wall','wall','window','wall','wall','window','wall','wall'],
+    ['wall','wall','wall','door','door','wall','wall','wall'],
+    ['ground','ground','grass','grass','grass','grass','ground','ground'],
+  ];
+
+  // Window descriptions for regular M=4 windows
+  const windowDescriptions = {
+    regular: {
+      4: [
+        { id: 0, title: 'Window 0 (top-left)', desc: 'Sees sky, chimney, and part of the roof. Has no idea there\'s a wall below.' },
+        { id: 1, title: 'Window 1 (top-right)', desc: 'Sees sky and roof peak. Doesn\'t know the chimney exists (it\'s in Window 0).' },
+        { id: 2, title: 'Window 2 (bottom-left)', desc: 'Sees wall, windows, and door. Has no clue there\'s a roof above.' },
+        { id: 3, title: 'Window 3 (bottom-right)', desc: 'Sees wall, windows, and ground. Can\'t connect to the roof or chimney.' },
+      ],
+      2: [
+        { id: '0-15', title: '16 tiny windows', desc: 'Each window sees only 4 pixels (2x2). Almost nothing connects -- the roof, wall, sky are all isolated fragments.' },
+      ],
+      8: [
+        { id: 0, title: 'Window 0 (entire image)', desc: 'One big window sees everything: sky, roof, walls, door. Full context but costs as much as global attention.' },
+      ],
+    },
+    shifted: {
+      4: [
+        { id: 'shifted', title: 'Shifted windows (offset by 2)', desc: 'Now the boundary between roof (row 3) and wall (row 4) falls INSIDE a window. Boundary pixels gain NEW connections they couldn\'t see before (highlighted in gold).' },
+      ],
+      2: [
+        { id: 'shifted', title: 'Shifted 2x2 windows', desc: 'Shift helps a little -- some boundary pixels gain 1-2 new neighbors. But 2x2 windows are still very limited.' },
+      ],
+      8: [
+        { id: 'shifted', title: 'Shifted 8x8 window', desc: 'With M=8, there\'s only one window covering everything. Shifting has no effect -- it\'s already global.' },
+      ],
+    }
+  };
+
+  const WINDOW_COLORS = [
+    [137,180,250], [166,227,161], [249,226,175], [243,139,168],
+    [203,166,247], [148,226,213], [250,179,135], [245,194,231],
+    [116,199,236], [186,194,222], [180,190,254], [235,160,172],
+    [242,205,205], [148,226,213], [137,220,235], [249,226,175],
+  ];
+  const NEW_CONN_COLOR = [250, 200, 50]; // gold for new connections
+
+  const canvas = document.getElementById('grid');
+  const ctx = canvas.getContext('2d');
+  const infoBar = document.getElementById('infoBar');
+
+  let winIdx = 1;
+  let shifted = false;
+  let animProgress = -1;
+  let hoverR = -1, hoverC = -1;
+
+  const PAD = 20;
+  const cellSize = () => (canvas.width - PAD * 2) / GRID;
+
+  function getWindowId(r, c, M, isShifted) {
+    let rr = r, cc = c;
+    if (isShifted) {
+      const shift = Math.floor(M / 2);
+      rr = (r + GRID - shift) % GRID;
+      cc = (c + GRID - shift) % GRID;
+    }
+    const wr = Math.floor(rr / M);
+    const wc = Math.floor(cc / M);
+    const numWinPerRow = Math.ceil(GRID / M);
+    return wr * numWinPerRow + wc;
+  }
+
+  function getWindowPatches(r, c, M, isShifted) {
+    const wid = getWindowId(r, c, M, isShifted);
+    const patches = [];
+    for (let rr = 0; rr < GRID; rr++)
+      for (let cc = 0; cc < GRID; cc++)
+        if (getWindowId(rr, cc, M, isShifted) === wid) patches.push([rr, cc]);
+    return patches;
+  }
+
+  function draw() {
+    const M = SIZES[winIdx];
+    const cs = cellSize();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const useShifted = animProgress >= 0 ? animProgress >= 0.5 : shifted;
+    const t = animProgress >= 0 ? (animProgress < 0.5 ? animProgress * 2 : (animProgress - 0.5) * 2) : 1;
+    const fadingOut = animProgress >= 0 && animProgress < 0.5;
+    const fadingIn = animProgress >= 0 && animProgress >= 0.5;
+    const alpha = fadingOut ? 1 - t * 0.3 : fadingIn ? 0.7 + t * 0.3 : 1;
+
+    // Hovered patch analysis
+    let hoverSet = null, regularSet = null, newConns = null;
+    if (hoverR >= 0) {
+      hoverSet = getWindowPatches(hoverR, hoverC, M, useShifted);
+      if (useShifted) {
+        regularSet = getWindowPatches(hoverR, hoverC, M, false);
+        const regKey = new Set(regularSet.map(p => p[0] * GRID + p[1]));
+        newConns = new Set();
+        hoverSet.forEach(p => {
+          if (!regKey.has(p[0] * GRID + p[1])) newConns.add(p[0] * GRID + p[1]);
+        });
+      }
+    }
+    const hoverKey = hoverSet ? new Set(hoverSet.map(p => p[0] * GRID + p[1])) : null;
+
+    // Draw cells with pixel art + window overlay
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const x = PAD + c * cs;
+        const y = PAD + r * cs;
+        const wid = getWindowId(r, c, M, useShifted);
+        const winCol = WINDOW_COLORS[wid % WINDOW_COLORS.length];
+        const key = r * GRID + c;
+        const inHover = hoverKey && hoverKey.has(key);
+        const isNew = newConns && newConns.has(key);
+        const isHovered = r === hoverR && c === hoverC;
+
+        // Draw the pixel art color as base
+        ctx.fillStyle = housePixels[r][c];
+        ctx.globalAlpha = alpha;
+        ctx.fillRect(x + 1, y + 1, cs - 2, cs - 2);
+
+        // Window color overlay (semi-transparent)
+        ctx.fillStyle = `rgba(${winCol[0]},${winCol[1]},${winCol[2]},${inHover ? 0.35 : 0.15})`;
+        ctx.fillRect(x + 1, y + 1, cs - 2, cs - 2);
+
+        // Gold overlay for new connections
+        if (isNew) {
+          ctx.fillStyle = `rgba(${NEW_CONN_COLOR[0]},${NEW_CONN_COLOR[1]},${NEW_CONN_COLOR[2]},0.45)`;
+          ctx.fillRect(x + 1, y + 1, cs - 2, cs - 2);
+        }
+
+        // Borders
+        if (isHovered) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(x + 2, y + 2, cs - 4, cs - 4);
+        } else if (inHover) {
+          ctx.strokeStyle = isNew ? `rgba(${NEW_CONN_COLOR[0]},${NEW_CONN_COLOR[1]},${NEW_CONN_COLOR[2]},0.9)` : `rgba(${winCol[0]},${winCol[1]},${winCol[2]},0.8)`;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, cs - 2, cs - 2);
+        } else {
+          ctx.strokeStyle = `rgba(${winCol[0]},${winCol[1]},${winCol[2]},${alpha * 0.3})`;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 1, y + 1, cs - 2, cs - 2);
+        }
+
+        // Pixel label
+        ctx.fillStyle = inHover ? '#ffffff' : `rgba(205,214,244,${alpha * 0.8})`;
+        ctx.font = `${cs > 50 ? 11 : 9}px system-ui`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = pixelLabels[r][c];
+        ctx.fillText(label.length > 5 ? label.slice(0, 5) : label, x + cs / 2, y + cs / 2);
+
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Draw window boundaries (thick purple lines)
+    ctx.lineWidth = 3;
+    const shift = useShifted ? Math.floor(M / 2) : 0;
+    const numWin = Math.ceil(GRID / M);
+    for (let wr = 0; wr <= numWin; wr++) {
+      let gy = (wr * M + shift) % GRID;
+      if (wr === 0 && shift === 0) continue;
+      if (wr === numWin && shift === 0) continue;
+      const py = PAD + gy * cs;
+      ctx.strokeStyle = `rgba(203,166,247,${alpha * 0.9})`;
+      ctx.beginPath(); ctx.moveTo(PAD, py); ctx.lineTo(PAD + GRID * cs, py); ctx.stroke();
+    }
+    for (let wc = 0; wc <= numWin; wc++) {
+      let gx = (wc * M + shift) % GRID;
+      if (wc === 0 && shift === 0) continue;
+      if (wc === numWin && shift === 0) continue;
+      const px = PAD + gx * cs;
+      ctx.strokeStyle = `rgba(203,166,247,${alpha * 0.9})`;
+      ctx.beginPath(); ctx.moveTo(px, PAD); ctx.lineTo(px, PAD + GRID * cs); ctx.stroke();
+    }
+
+    // Mark the problem boundary (row 3-4 split) in regular mode
+    if (!useShifted && M === 4) {
+      const by = PAD + 4 * cs;
+      ctx.strokeStyle = 'rgba(243,139,168,0.8)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(PAD, by); ctx.lineTo(PAD + GRID * cs, by); ctx.stroke();
+      ctx.setLineDash([]);
+      // Label
+      ctx.fillStyle = '#f38ba8';
+      ctx.font = 'bold 11px system-ui';
+      ctx.textAlign = 'right';
+      ctx.fillText('SPLIT boundary!', PAD + GRID * cs - 4, by - 5);
+    }
+
+    // Outer border
+    ctx.strokeStyle = '#585b70';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(PAD, PAD, GRID * cs, GRID * cs);
+
+    // Update scope info
+    document.getElementById('scopeBox').innerHTML =
+      `<span class="hl">M=${M}:</span> Each pixel attends to <span class="blue">${M * M} neighbors</span> in its window. ` +
+      `<span class="hl">Global attention:</span> each pixel would see ALL <span class="blue">64 pixels</span> but costs <span class="hl">${Math.round(64 / (M * M))}x more compute</span>.` +
+      (M < 8 ? ` Swin gets near-global coverage in 2 layers (regular + shifted) at a fraction of the cost.` : ` At M=8, one window = the whole image. Already global.`);
+  }
+
+  function updateDescriptions() {
+    const M = SIZES[winIdx];
+    const useShifted = shifted;
+    const key = useShifted ? 'shifted' : 'regular';
+    const mKey = M;
+    const descs = windowDescriptions[key][mKey] || windowDescriptions[key][Object.keys(windowDescriptions[key])[0]];
+    const el = document.getElementById('windowDescs');
+    let html = '';
+    descs.forEach(d => {
+      html += `<div style="margin-bottom:10px;"><strong style="color:#cba6f7;">${d.title}:</strong> ${d.desc}</div>`;
+    });
+
+    if (!useShifted && M === 4) {
+      html += `<div style="margin-top:12px;padding:10px;background:#1e1e2e;border-radius:8px;border:1px solid #f38ba8;">
+        <strong style="color:#f38ba8;">The Problem:</strong> The roof (row 3) and wall (row 4) boundary is SPLIT between Window 0/1 and Window 2/3. Pixels at the edge can\'t see across. The model doesn\'t know the roof connects to the wall!
+      </div>`;
+    }
+    if (useShifted && M === 4) {
+      html += `<div style="margin-top:12px;padding:10px;background:#1e1e2e;border-radius:8px;border:1px solid #a6e3a1;">
+        <strong style="color:#a6e3a1;">The Fix:</strong> After shifting by 2 pixels, the roof-wall boundary now falls INSIDE a window. Hover over boundary pixels to see their <span style="color:#f9e2af;">new connections</span> highlighted in gold.
+      </div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  function updateLegend() {
+    const M = SIZES[winIdx];
+    const numWin = Math.ceil(GRID / M);
+    const total = numWin * numWin;
+    const legend = document.getElementById('legend');
+    let html = '';
+    if (total <= 16) {
+      for (let i = 0; i < total; i++) {
+        const col = WINDOW_COLORS[i % WINDOW_COLORS.length];
+        html += `<div class="legend-item"><div class="legend-swatch" style="background:rgb(${col[0]},${col[1]},${col[2]})"></div>Window ${i}</div>`;
+      }
+    } else {
+      html += `<div class="legend-item">${total} windows (M=${M})</div>`;
+    }
+    html += `<div class="legend-item"><div class="legend-swatch" style="background:rgb(${NEW_CONN_COLOR[0]},${NEW_CONN_COLOR[1]},${NEW_CONN_COLOR[2]})"></div>New cross-window connection</div>`;
+    legend.innerHTML = html;
+  }
+
+  // --- Events ---
+  const btnReg = document.getElementById('btnRegular');
+  const btnShift = document.getElementById('btnShifted');
+  const btnAnim = document.getElementById('btnAnimate');
+  const winSlider = document.getElementById('winSlider');
+  const winLabel = document.getElementById('winLabel');
+  const layerTitle = document.getElementById('layerTitle');
+
+  function setMode(s) {
+    shifted = s;
+    btnReg.classList.toggle('active', !s);
+    btnShift.classList.toggle('active', s);
+    layerTitle.textContent = s ? 'Layer l+1 -- Shifted Windows' : 'Layer l -- Regular Windows';
+    updateDescriptions();
+    draw();
+  }
+
+  btnReg.addEventListener('click', () => setMode(false));
+  btnShift.addEventListener('click', () => setMode(true));
+
+  btnAnim.addEventListener('click', () => {
+    if (animProgress >= 0) return;
+    animProgress = 0;
+    const dur = 1400;
+    const start = performance.now();
+    function tick(now) {
+      animProgress = Math.min(1, (now - start) / dur);
+      draw();
+      if (animProgress < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        shifted = !shifted;
+        animProgress = -1;
+        setMode(shifted);
+      }
+    }
+    requestAnimationFrame(tick);
+  });
+
+  winSlider.addEventListener('input', () => {
+    winIdx = parseInt(winSlider.value);
+    winLabel.textContent = SIZES[winIdx];
+    updateLegend();
+    updateDescriptions();
+    draw();
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+    const cs = cellSize();
+    const c = Math.floor((mx - PAD) / cs);
+    const r = Math.floor((my - PAD) / cs);
+    if (r >= 0 && r < GRID && c >= 0 && c < GRID) {
+      hoverR = r; hoverC = c;
+      const M = SIZES[winIdx];
+      const useShifted = animProgress >= 0 ? animProgress >= 0.5 : shifted;
+      const patches = getWindowPatches(r, c, M, useShifted);
+      const others = patches.length - 1;
+      const label = pixelLabels[r][c];
+
+      let msg = `Pixel (${r},${c}) "${label}" -- Window ${getWindowId(r, c, M, useShifted)} -- can attend to ${others} other pixels in its window.`;
+
+      if (useShifted) {
+        const regPatches = getWindowPatches(r, c, M, false);
+        const regKey = new Set(regPatches.map(p => p[0] * GRID + p[1]));
+        let newCount = 0;
+        patches.forEach(p => { if (!regKey.has(p[0] * GRID + p[1])) newCount++; });
+        if (newCount > 0) {
+          msg += ` (${newCount} NEW neighbors it couldn't see before!)`;
+        }
+      }
+      infoBar.textContent = msg;
+    } else {
+      hoverR = -1; hoverC = -1;
+      infoBar.textContent = 'Hover over any pixel to see what it can attend to in its window.';
+    }
+    draw();
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    hoverR = -1; hoverC = -1;
+    infoBar.textContent = 'Hover over any pixel to see what it can attend to in its window.';
+    draw();
+  });
+
+  // Init
+  updateLegend();
+  updateDescriptions();
+  draw();
+})();
+</script>
+</body>
+</html>

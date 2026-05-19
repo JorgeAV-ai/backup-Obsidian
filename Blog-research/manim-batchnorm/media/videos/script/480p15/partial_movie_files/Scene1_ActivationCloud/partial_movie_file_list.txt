@@ -1,0 +1,3 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene1_ActivationCloud/1710030337_3225403775_1226646867.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene1_ActivationCloud/1352332080_1941315743_4220473405.mp4'

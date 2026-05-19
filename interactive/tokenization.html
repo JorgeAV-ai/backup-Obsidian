@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tokenization: How AI Reads Text</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:1.5rem;font-size:1.8rem;background:linear-gradient(135deg,#89b4fa,#a6e3a1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+h2{color:#89b4fa;font-size:1.1rem;margin-bottom:.8rem}
+.container{max-width:1000px;margin:0 auto;padding:0 1.5rem 2rem;flex:1;width:100%}
+.card{background:#313244;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #45475a}
+textarea{width:100%;background:#181825;color:#cdd6f4;border:2px solid #45475a;border-radius:8px;padding:.8rem;font-size:1rem;resize:vertical;min-height:60px;font-family:inherit;transition:border-color .2s}
+textarea:focus{outline:none;border-color:#89b4fa}
+.token-display{display:flex;flex-wrap:wrap;gap:6px;margin:1rem 0;min-height:48px;align-items:flex-start}
+.token{border-radius:6px;padding:4px 10px;font-size:.9rem;display:inline-flex;flex-direction:column;align-items:center;transition:transform .15s;cursor:default;animation:fadeIn .25s ease}
+.token:hover{transform:translateY(-2px)}
+.token .id{font-size:.65rem;opacity:.7;margin-top:1px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.type-word{background:#89b4fa22;border:1px solid #89b4fa;color:#89b4fa}
+.type-subword{background:#cba6f722;border:1px solid #cba6f7;color:#cba6f7}
+.type-punct{background:#f38ba822;border:1px solid #f38ba8;color:#f38ba8}
+.type-number{background:#fab38722;border:1px solid #fab387;color:#fab387}
+.type-space{background:#a6e3a122;border:1px solid #a6e3a1;color:#a6e3a1}
+.legend{display:flex;flex-wrap:wrap;gap:.8rem;margin:.8rem 0;font-size:.8rem}
+.legend span{display:flex;align-items:center;gap:4px}
+.legend .dot{width:10px;height:10px;border-radius:3px}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.8rem;margin:1rem 0}
+.stat{background:#45475a;border-radius:8px;padding:.8rem;text-align:center}
+.stat .num{font-size:1.5rem;font-weight:700}
+.stat .label{font-size:.75rem;color:#a6adc8;margin-top:.2rem}
+.stat.blue .num{color:#89b4fa}
+.stat.purple .num{color:#cba6f7}
+.stat.green .num{color:#a6e3a1}
+.stat.orange .num{color:#fab387}
+.examples{display:flex;flex-wrap:wrap;gap:.5rem;margin:.8rem 0}
+.ex-btn{background:#45475a;color:#cdd6f4;border:1px solid #585b70;border-radius:6px;padding:.4rem .8rem;cursor:pointer;font-size:.82rem;transition:all .2s}
+.ex-btn:hover{background:#585b70;border-color:#89b4fa}
+.explanation{background:#181825;border-radius:8px;padding:1rem;margin:.8rem 0;font-size:.9rem;line-height:1.6;color:#bac2de;border-left:3px solid #89b4fa}
+.merge-tree{background:#181825;border-radius:8px;padding:1rem;margin:.8rem 0;overflow-x:auto}
+.merge-step{display:flex;align-items:center;gap:4px;margin:.4rem 0;font-size:.9rem;flex-wrap:wrap}
+.merge-step .char{background:#45475a;border-radius:4px;padding:2px 6px;font-family:monospace;transition:all .4s}
+.merge-step .char.merged{background:#cba6f733;border:1px solid #cba6f7;color:#cba6f7}
+.merge-step .step-label{color:#6c7086;font-size:.75rem;min-width:60px}
+.fun-fact{background:#181825;border-radius:8px;padding:1rem;font-size:.85rem;color:#a6adc8;line-height:1.5;border-left:3px solid #cba6f7;margin-top:.8rem}
+footer{text-align:center;padding:1.2rem;color:#6c7086;font-size:.8rem;border-top:1px solid #313244;margin-top:auto}
+</style>
+</head>
+<body>
+<h1>Tokenization: How AI Reads Text</h1>
+<div class="container">
+
+<div class="card">
+<h2>Type anything and watch it get tokenized</h2>
+<textarea id="input" oninput="tokenize()" placeholder="Type text here...">The cat sat on the mat</textarea>
+<div class="legend">
+<span><div class="dot" style="background:#89b4fa"></div> Whole word</span>
+<span><div class="dot" style="background:#cba6f7"></div> Subword</span>
+<span><div class="dot" style="background:#f38ba8"></div> Punctuation</span>
+<span><div class="dot" style="background:#fab387"></div> Number</span>
+<span><div class="dot" style="background:#a6e3a1"></div> Space prefix</span>
+</div>
+<div class="token-display" id="token-display"></div>
+<div class="stats-row">
+<div class="stat blue"><div class="num" id="s-chars">22</div><div class="label">Characters</div></div>
+<div class="stat purple"><div class="num" id="s-tokens">6</div><div class="label">Tokens</div></div>
+<div class="stat green"><div class="num" id="s-ratio">3.7</div><div class="label">Chars / Token</div></div>
+<div class="stat orange"><div class="num" id="s-words">6</div><div class="label">Words</div></div>
+</div>
+</div>
+
+<div class="card">
+<h2>Try these examples</h2>
+<div class="examples">
+<button class="ex-btn" onclick="setExample('Hello world')">Hello world</button>
+<button class="ex-btn" onclick="setExample('unhappiness')">unhappiness</button>
+<button class="ex-btn" onclick="setExample('GPT-4 is amazing!')">GPT-4 is amazing!</button>
+<button class="ex-btn" onclick="setExample('Pneumonoultramicroscopicsilicovolcanoconiosis')">Pneumono...coniosis</button>
+<button class="ex-btn" onclick="setExample('The quick brown fox jumps over the lazy dog')">Quick brown fox</button>
+<button class="ex-btn" onclick="setExample('https://www.example.com/path?q=hello&lang=en')">URL</button>
+<button class="ex-btn" onclick="setExample('def fibonacci(n):\n    return n if n <= 1 else fibonacci(n-1) + fibonacci(n-2)')">Python code</button>
+<button class="ex-btn" onclick="setExample('Tokyo is 東京 in Japanese')">Mixed languages</button>
+</div>
+</div>
+
+<div class="card">
+<h2>BPE Merge Visualization: How "lowest" is built</h2>
+<div class="explanation">
+Byte-Pair Encoding (BPE) starts with individual characters and repeatedly merges the most frequent pair. Here is how the word <strong>"lowest"</strong> would be constructed:
+</div>
+<div class="merge-tree" id="merge-tree"></div>
+<button class="ex-btn" style="margin-top:.5rem" onclick="animateMerge()">Replay animation</button>
+</div>
+
+<div class="card">
+<div class="fun-fact">
+<strong>Fun comparisons:</strong><br>
+&bull; In English, 1 token &asymp; 4 characters on average.<br>
+&bull; In Japanese, 1 token &asymp; 1&ndash;2 characters (kanji are rarer in vocabulary).<br>
+&bull; In Spanish, 1 token &asymp; 3.5 characters.<br>
+&bull; Code tends to be ~2.5 chars/token because of short variable names and symbols.<br>
+&bull; GPT-4's vocabulary has ~100,000 tokens. Common words like "the" are single tokens, while rare words get split into subwords.
+</div>
+</div>
+
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+// Simulated BPE vocabulary (~200 common tokens)
+const VOCAB = [
+  // Common full words
+  "the","of","and","to","in","is","it","that","for","was","on","are","with","as","at","be","this","from","or","an","by","not","but","what","all","were","when","we","there","can","had","has","her","him","his","how","its","may","no","our","out","so","than","them","then","these","they","up","who","will","you","your",
+  "The","Hello","world","cat","sat","mat","dog","fox","quick","brown","lazy","jumps","over",
+  "is","was","are","am","be","been","being","have","has","had","do","does","did",
+  // Common subwords
+  "ing","tion","ment","ness","able","ible","ful","less","ous","ive","er","est","ly","un","re","pre","dis","mis","im","in","il","ir",
+  "low","est","high","new","old","big","small","good","bad","great","little",
+  // Programming
+  "def","return","if","else","while","for","class","import","from","print","self","true","false","none","int","str","list","dict","set",
+  // More subwords
+  "com","www","http","https","org","net","edu","gov",
+  "app","web","data","info","tech","dev","code","test","file","path","query","lang",
+  // Characters we treat as single tokens
+  "a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z",
+  "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z",
+  "0","1","2","3","4","5","6","7","8","9",
+  // Subword pieces
+  "al","an","ar","at","ch","ck","ct","ed","el","en","er","es","ic","id","ig","il","im","io","ir","le","ng","nt","on","or","os","ot","ou","ow","ph","qu","ri","ro","sc","sh","si","sp","st","te","th","ti","to","ul","um","us","ut",
+  "ation","tion","sion","ment","ness","able","ence","ance","ious","eous","ical","ally","ular","ible",
+  "micro","scope","scop","ultra","volcan","pneumon","con","osis","silico",
+  "happy","happen","happ","iness","ine","cap","ital",
+  "amaz","amazing","Madrid","Tokyo",
+  "Fib","fib","onacci","bonacci",
+];
+
+// Sort vocab by length descending for greedy matching
+const SORTED_VOCAB = [...VOCAB].sort((a,b)=>b.length-a.length);
+
+let tokenIdMap = {};
+VOCAB.forEach((t,i)=>tokenIdMap[t]=1000+i);
+
+function bpeTokenize(text){
+  if(!text)return[];
+  const tokens=[];
+  // Split into rough segments: whitespace-prefixed words, punctuation, numbers
+  const segments = text.match(/\s+\S+|\S+/g) || [];
+  for(const seg of segments){
+    let remaining = seg;
+    while(remaining.length > 0){
+      let matched = false;
+      for(const vocab of SORTED_VOCAB){
+        if(remaining.startsWith(vocab)){
+          tokens.push(vocab);
+          remaining = remaining.slice(vocab.length);
+          matched = true;
+          break;
+        }
+      }
+      if(!matched){
+        // single character fallback
+        tokens.push(remaining[0]);
+        remaining = remaining.slice(1);
+      }
+    }
+  }
+  return tokens;
+}
+
+function getTokenType(t){
+  if(/^\s+$/.test(t)) return 'space';
+  if(/^[^\w\s]+$/.test(t)) return 'punct';
+  if(/^\d+$/.test(t)) return 'number';
+  // Check if it's a "whole word" (preceded by space or start, common word)
+  const lower = t.toLowerCase().trim();
+  const wholeWords = new Set(["the","of","and","to","in","is","it","that","for","was","on","are","with","as","at","be","this","from","or","an","by","not","but","what","all","were","when","we","there","can","had","has","her","him","his","how","its","may","no","our","out","so","than","them","then","these","they","up","who","will","you","your","hello","world","cat","sat","mat","dog","fox","quick","brown","lazy","jumps","over","def","return","if","else","while","for","class","import","print","self","true","false","amazing","madrid","tokyo"]);
+  if(wholeWords.has(lower) && t.trim().length > 1) return 'word';
+  if(t.trim().length <= 3) return 'subword';
+  return 'subword';
+}
+
+const TYPE_CLASS = {word:'type-word',subword:'type-subword',punct:'type-punct',number:'type-number',space:'type-space'};
+
+function tokenize(){
+  const text = document.getElementById('input').value;
+  const tokens = bpeTokenize(text);
+  const display = document.getElementById('token-display');
+  display.innerHTML = '';
+  tokens.forEach((t,i)=>{
+    const type = getTokenType(t);
+    const el = document.createElement('div');
+    el.className = 'token ' + TYPE_CLASS[type];
+    const displayText = t.replace(/ /g,'\u00B7').replace(/\n/g,'\\n').replace(/\t/g,'\\t');
+    const id = tokenIdMap[t] || (t.charCodeAt(0) + 2000);
+    el.innerHTML = `<span>${displayText}</span><span class="id">#${id}</span>`;
+    el.style.animationDelay = (i*30)+'ms';
+    display.appendChild(el);
+  });
+  // Stats
+  const chars = text.length;
+  const nTokens = tokens.length;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  document.getElementById('s-chars').textContent = chars;
+  document.getElementById('s-tokens').textContent = nTokens;
+  document.getElementById('s-ratio').textContent = nTokens ? (chars/nTokens).toFixed(1) : '0';
+  document.getElementById('s-words').textContent = words;
+}
+
+function setExample(text){
+  document.getElementById('input').value = text;
+  tokenize();
+}
+
+// BPE Merge visualization for "lowest"
+const mergeSteps = [
+  {chars:['l','o','w','e','s','t'], merged:[], label:'Start'},
+  {chars:['l','o','w','e','st'], merged:[4], label:'Merge s+t'},
+  {chars:['l','ow','e','st'], merged:[1], label:'Merge o+w'},
+  {chars:['low','e','st'], merged:[0], label:'Merge l+ow'},
+  {chars:['low','est'], merged:[1], label:'Merge e+st'},
+  {chars:['lowest'], merged:[0], label:'Merge low+est'},
+];
+let mergeAnimating = false;
+
+function renderMergeStep(stepIdx, animate){
+  const container = document.getElementById('merge-tree');
+  if(stepIdx === 0) container.innerHTML = '';
+  const step = mergeSteps[stepIdx];
+  const row = document.createElement('div');
+  row.className = 'merge-step';
+  if(animate){row.style.opacity='0';row.style.transform='translateX(-10px)';row.style.transition='all .3s'}
+  const label = document.createElement('span');
+  label.className = 'step-label';
+  label.textContent = step.label;
+  row.appendChild(label);
+  step.chars.forEach((c,i)=>{
+    const span = document.createElement('span');
+    span.className = 'char' + (step.merged.includes(i) ? ' merged' : '');
+    span.textContent = c;
+    row.appendChild(span);
+  });
+  container.appendChild(row);
+  if(animate){
+    requestAnimationFrame(()=>{row.style.opacity='1';row.style.transform='translateX(0)'});
+  }
+}
+
+function animateMerge(){
+  if(mergeAnimating)return;
+  mergeAnimating = true;
+  document.getElementById('merge-tree').innerHTML = '';
+  mergeSteps.forEach((_, i)=>{
+    setTimeout(()=>{
+      renderMergeStep(i, true);
+      if(i === mergeSteps.length-1) mergeAnimating = false;
+    }, i * 500);
+  });
+}
+
+// Init
+tokenize();
+animateMerge();
+</script>
+</body>
+</html>

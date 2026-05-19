@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layer Normalization: Keeping Neurons in Check</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.6;
+  }
+  header { text-align: center; padding: 2rem 1rem 1rem; border-bottom: 1px solid #313244; }
+  header h1 { font-size: 1.8rem; color: #cba6f7; margin-bottom: 0.3rem; }
+  header p { color: #a6adc8; font-size: 0.95rem; }
+  main { flex: 1; max-width: 1100px; width: 100%; margin: 0 auto; padding: 1.5rem 1rem; }
+  footer { text-align: center; padding: 1rem; border-top: 1px solid #313244; color: #585b70; font-size: 0.8rem; }
+  .card { background: #181825; border: 1px solid #313244; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
+  .card h2 { font-size: 1.15rem; color: #89b4fa; margin-bottom: 0.75rem; }
+  .step-label { color: #cba6f7; font-weight: 700; font-size: 0.9rem; margin-bottom: 0.4rem; }
+  .feature-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+  }
+  .feature-cell {
+    width: 72px;
+    height: 48px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #1e1e2e;
+    transition: all 0.4s ease;
+    flex-shrink: 0;
+  }
+  .stat-line { font-family: monospace; font-size: 0.85rem; color: #a6adc8; margin-bottom: 0.3rem; }
+  .stat-line .hl { color: #f9e2af; font-weight: 600; }
+  .slider-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+  .slider-row label { font-size: 0.82rem; width: 30px; color: #bac2de; font-family: monospace; }
+  .slider-row input[type=range] {
+    -webkit-appearance: none; flex: 1; height: 5px; background: #313244; border-radius: 3px; outline: none;
+  }
+  .slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; background: #cba6f7; border-radius: 50%; cursor: pointer;
+  }
+  .slider-row .val { font-family: monospace; font-size: 0.8rem; width: 45px; text-align: right; color: #cba6f7; }
+  /* Grid comparison */
+  .grid-wrapper { display: flex; gap: 2rem; flex-wrap: wrap; margin-top: 0.75rem; }
+  .grid-section { flex: 1; min-width: 280px; }
+  .grid-section h3 { font-size: 0.95rem; color: #a6adc8; margin-bottom: 0.5rem; }
+  .grid-section p { font-size: 0.8rem; color: #585b70; margin-top: 0.4rem; font-style: italic; }
+  .norm-grid {
+    display: grid;
+    gap: 3px;
+  }
+  .norm-cell {
+    height: 36px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-family: monospace;
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+  .norm-cell.dim { opacity: 0.2; }
+  .norm-cell.bright { opacity: 1; box-shadow: 0 0 8px rgba(203,166,247,0.4); }
+  .row-labels, .col-labels { font-size: 0.72rem; color: #a6adc8; font-family: monospace; }
+  /* Toggle for pre/post norm */
+  .toggle-group { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .toggle-btn {
+    background: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px;
+    padding: 0.4rem 1rem; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
+  }
+  .toggle-btn.active { background: #cba6f7; color: #1e1e2e; border-color: #cba6f7; }
+  .block-diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 1rem 0;
+  }
+  .block-box {
+    width: 220px;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    position: relative;
+  }
+  .block-arrow {
+    width: 2px;
+    height: 24px;
+    background: #45475a;
+    position: relative;
+  }
+  .block-arrow::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: -4px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #45475a;
+  }
+  .block-input { background: #313244; color: #cdd6f4; border: 1px solid #45475a; }
+  .block-ln { background: #cba6f7; color: #1e1e2e; border: 2px solid #cba6f7; }
+  .block-attn { background: #89b4fa; color: #1e1e2e; border: 1px solid #89b4fa; }
+  .block-add { background: #a6e3a1; color: #1e1e2e; border: 1px solid #a6e3a1; }
+  .block-ffn { background: #fab387; color: #1e1e2e; border: 1px solid #fab387; }
+  .skip-line {
+    position: absolute;
+    border: 2px dashed #f9e2af;
+    border-radius: 0 12px 12px 0;
+    pointer-events: none;
+  }
+  .diagram-row { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; }
+  .diagram-col { display: flex; flex-direction: column; align-items: center; }
+  .diagram-col h4 { font-size: 0.9rem; color: #a6adc8; margin-bottom: 0.5rem; }
+  @media (max-width: 600px) {
+    header h1 { font-size: 1.4rem; }
+    .feature-cell { width: 58px; height: 40px; font-size: 0.7rem; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Layer Normalization: Keeping Neurons in Check</h1>
+  <p>Processing the word "cat" in a transformer &mdash; step by step</p>
+</header>
+<main>
+  <!-- Step 1: Input features -->
+  <div class="card">
+    <h2>The word "cat" as a feature vector (8 dimensions)</h2>
+    <div class="step-label">Original features:</div>
+    <div class="feature-row" id="origRow"></div>
+  </div>
+
+  <!-- Step 2: Compute stats -->
+  <div class="card">
+    <h2>Step 1: Compute Mean (&mu;) and Variance (&sigma;&sup2;)</h2>
+    <div class="stat-line" id="meanCalc"></div>
+    <div class="stat-line" id="varCalc"></div>
+  </div>
+
+  <!-- Step 3: Normalize -->
+  <div class="card">
+    <h2>Step 2: Normalize &rarr; center around 0</h2>
+    <div class="stat-line" style="margin-bottom:0.6rem">x&#x0302;<sub>i</sub> = (x<sub>i</sub> &minus; &mu;) / &radic;(&sigma;&sup2; + &epsilon;)</div>
+    <div class="feature-row" id="normRow"></div>
+  </div>
+
+  <!-- Step 4: Scale & shift -->
+  <div class="card">
+    <h2>Step 3: Scale (&gamma;) and Shift (&beta;)</h2>
+    <p style="font-size:0.82rem;color:#a6adc8;margin-bottom:0.75rem">y<sub>i</sub> = &gamma; &middot; x&#x0302;<sub>i</sub> + &beta; &mdash; learnable parameters that let the network undo normalization if needed.</p>
+    <div id="gammaSliders"></div>
+    <div style="margin-top:0.5rem" id="betaSliders"></div>
+    <div class="step-label" style="margin-top:0.75rem">Final output:</div>
+    <div class="feature-row" id="finalRow"></div>
+  </div>
+
+  <!-- LayerNorm vs BatchNorm grid -->
+  <div class="card">
+    <h2>LayerNorm vs BatchNorm &mdash; What gets normalized?</h2>
+    <p style="font-size:0.82rem;color:#a6adc8;margin-bottom:0.5rem">Rows = words in a batch, Columns = features. Highlighted cells show what each method normalizes together.</p>
+    <div class="grid-wrapper">
+      <div class="grid-section">
+        <h3>Layer Normalization</h3>
+        <div style="font-size:0.72rem;color:#585b70;margin-bottom:4px;font-family:monospace">&nbsp;&nbsp;&nbsp;f1&nbsp;&nbsp;f2&nbsp;&nbsp;f3&nbsp;&nbsp;f4&nbsp;&nbsp;f5&nbsp;&nbsp;f6&nbsp;&nbsp;f7&nbsp;&nbsp;f8</div>
+        <div class="norm-grid" id="lnGrid" style="grid-template-columns:repeat(8,1fr)"></div>
+        <p>"Each word is self-contained" &mdash; normalizes across all 8 features for ONE word.</p>
+      </div>
+      <div class="grid-section">
+        <h3>Batch Normalization</h3>
+        <div style="font-size:0.72rem;color:#585b70;margin-bottom:4px;font-family:monospace">&nbsp;&nbsp;&nbsp;f1&nbsp;&nbsp;f2&nbsp;&nbsp;f3&nbsp;&nbsp;f4&nbsp;&nbsp;f5&nbsp;&nbsp;f6&nbsp;&nbsp;f7&nbsp;&nbsp;f8</div>
+        <div class="norm-grid" id="bnGrid" style="grid-template-columns:repeat(8,1fr)"></div>
+        <p>"Needs the whole batch" &mdash; normalizes across ALL words for ONE feature.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pre-norm vs Post-norm -->
+  <div class="card">
+    <h2>Pre-Norm vs Post-Norm in a Transformer Block</h2>
+    <div class="toggle-group">
+      <button class="toggle-btn active" id="preBtn" onclick="setNormPos('pre')">Pre-Norm (modern)</button>
+      <button class="toggle-btn" id="postBtn" onclick="setNormPos('post')">Post-Norm (original)</button>
+    </div>
+    <div class="diagram-row" id="diagramArea"></div>
+  </div>
+</main>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const origValues = [2.1, -0.5, 3.7, 0.8, -1.2, 4.5, -0.3, 1.1];
+const N = 8;
+let gammas = Array(N).fill(1.0);
+let betas = Array(N).fill(0.0);
+let lnHighlightRow = 1;
+let bnHighlightCol = 2;
+
+function valToColor(v, minV, maxV) {
+  const t = (v - minV) / (maxV - minV || 1);
+  // purple to teal gradient
+  const r = Math.round(203 * (1 - t) + 137 * t);
+  const g = Math.round(166 * (1 - t) + 180 * t);
+  const b = Math.round(247 * (1 - t) + 250 * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function computeStats() {
+  const mean = origValues.reduce((a, b) => a + b, 0) / N;
+  const variance = origValues.reduce((a, v) => a + (v - mean) ** 2, 0) / N;
+  return { mean, variance };
+}
+
+function normalize() {
+  const { mean, variance } = computeStats();
+  const eps = 1e-5;
+  return origValues.map(v => (v - mean) / Math.sqrt(variance + eps));
+}
+
+function renderAll() {
+  const { mean, variance } = computeStats();
+  const normed = normalize();
+  const final = normed.map((v, i) => gammas[i] * v + betas[i]);
+
+  // Original row
+  const minO = Math.min(...origValues), maxO = Math.max(...origValues);
+  document.getElementById('origRow').innerHTML = origValues.map((v, i) =>
+    `<div class="feature-cell" style="background:${valToColor(v, minO, maxO)}">${v.toFixed(1)}</div>`
+  ).join('');
+
+  // Stats
+  document.getElementById('meanCalc').innerHTML =
+    `&mu; = (${origValues.map(v => v.toFixed(1)).join(' + ')}) / ${N} = <span class="hl">${mean.toFixed(4)}</span>`;
+  document.getElementById('varCalc').innerHTML =
+    `&sigma;&sup2; = &Sigma;(x<sub>i</sub> &minus; &mu;)&sup2; / ${N} = <span class="hl">${variance.toFixed(4)}</span>`;
+
+  // Normalized row
+  const minN = Math.min(...normed), maxN = Math.max(...normed);
+  document.getElementById('normRow').innerHTML = normed.map((v, i) =>
+    `<div class="feature-cell" style="background:${valToColor(v, minN, maxN)}">${v.toFixed(2)}</div>`
+  ).join('');
+
+  // Final row
+  const minF = Math.min(...final), maxF = Math.max(...final);
+  document.getElementById('finalRow').innerHTML = final.map((v, i) =>
+    `<div class="feature-cell" style="background:${valToColor(v, minF, maxF)}">${v.toFixed(2)}</div>`
+  ).join('');
+}
+
+function renderSliders() {
+  let gHtml = '<div class="step-label">&gamma; (scale) per feature:</div>';
+  for (let i = 0; i < N; i++) {
+    gHtml += `<div class="slider-row">
+      <label>&gamma;${i}</label>
+      <input type="range" min="-2" max="3" step="0.05" value="${gammas[i]}" data-type="gamma" data-idx="${i}">
+      <div class="val" id="gv${i}">${gammas[i].toFixed(2)}</div>
+    </div>`;
+  }
+  document.getElementById('gammaSliders').innerHTML = gHtml;
+
+  let bHtml = '<div class="step-label">&beta; (shift) per feature:</div>';
+  for (let i = 0; i < N; i++) {
+    bHtml += `<div class="slider-row">
+      <label>&beta;${i}</label>
+      <input type="range" min="-3" max="3" step="0.05" value="${betas[i]}" data-type="beta" data-idx="${i}">
+      <div class="val" id="bv${i}">${betas[i].toFixed(2)}</div>
+    </div>`;
+  }
+  document.getElementById('betaSliders').innerHTML = bHtml;
+
+  document.querySelectorAll('.slider-row input[type=range]').forEach(el => {
+    el.addEventListener('input', (e) => {
+      const idx = parseInt(e.target.dataset.idx);
+      const val = parseFloat(e.target.value);
+      if (e.target.dataset.type === 'gamma') {
+        gammas[idx] = val;
+        document.getElementById('gv' + idx).textContent = val.toFixed(2);
+      } else {
+        betas[idx] = val;
+        document.getElementById('bv' + idx).textContent = val.toFixed(2);
+      }
+      renderAll();
+    });
+  });
+}
+
+// Grid comparison
+const batchWords = ['the', 'cat', 'sat', 'on'];
+const batchData = [
+  [0.3, 1.2, -0.5, 0.8, -1.1, 2.3, 0.1, -0.4],
+  origValues,
+  [-0.2, 0.9, 1.5, -0.3, 0.7, -1.0, 2.1, 0.4],
+  [1.1, -0.8, 0.6, 1.9, -0.5, 0.2, -1.3, 0.7],
+];
+
+function gridColor(v) {
+  const t = (v + 2) / 6;
+  const h = 260 - t * 80;
+  return `hsl(${h}, 60%, 55%)`;
+}
+
+function renderGrids() {
+  // LN grid
+  let lnHtml = '';
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 8; c++) {
+      const bright = r === lnHighlightRow ? 'bright' : 'dim';
+      lnHtml += `<div class="norm-cell ${bright}" style="background:${gridColor(batchData[r][c])}" data-grid="ln" data-r="${r}" data-c="${c}">${batchData[r][c].toFixed(1)}</div>`;
+    }
+  }
+  document.getElementById('lnGrid').innerHTML = lnHtml;
+
+  // BN grid
+  let bnHtml = '';
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 8; c++) {
+      const bright = c === bnHighlightCol ? 'bright' : 'dim';
+      bnHtml += `<div class="norm-cell ${bright}" style="background:${gridColor(batchData[r][c])}" data-grid="bn" data-r="${r}" data-c="${c}">${batchData[r][c].toFixed(1)}</div>`;
+    }
+  }
+  document.getElementById('bnGrid').innerHTML = bnHtml;
+
+  // Click handlers
+  document.querySelectorAll('#lnGrid .norm-cell').forEach(el => {
+    el.addEventListener('click', () => {
+      lnHighlightRow = parseInt(el.dataset.r);
+      renderGrids();
+    });
+  });
+  document.querySelectorAll('#bnGrid .norm-cell').forEach(el => {
+    el.addEventListener('click', () => {
+      bnHighlightCol = parseInt(el.dataset.c);
+      renderGrids();
+    });
+  });
+}
+
+// Pre-norm / Post-norm diagrams
+function setNormPos(pos) {
+  document.getElementById('preBtn').classList.toggle('active', pos === 'pre');
+  document.getElementById('postBtn').classList.toggle('active', pos === 'post');
+  renderDiagram(pos);
+}
+
+function makeBlock(cls, text) {
+  return `<div class="block-box ${cls}">${text}</div>`;
+}
+function makeArrow() {
+  return `<div class="block-arrow"></div>`;
+}
+
+function renderDiagram(pos) {
+  const area = document.getElementById('diagramArea');
+  if (pos === 'pre') {
+    area.innerHTML = `
+      <div class="diagram-col">
+        <h4>Pre-Norm Transformer Block</h4>
+        ${makeBlock('block-input', 'Input x')}
+        ${makeArrow()}
+        ${makeBlock('block-ln', 'LayerNorm')}
+        ${makeArrow()}
+        ${makeBlock('block-attn', 'Self-Attention')}
+        ${makeArrow()}
+        ${makeBlock('block-add', 'Add (x + output)')}
+        ${makeArrow()}
+        ${makeBlock('block-ln', 'LayerNorm')}
+        ${makeArrow()}
+        ${makeBlock('block-ffn', 'Feed-Forward')}
+        ${makeArrow()}
+        ${makeBlock('block-add', 'Add (x + output)')}
+        ${makeArrow()}
+        ${makeBlock('block-input', 'Output')}
+        <p style="font-size:0.8rem;color:#a6adc8;margin-top:0.75rem;text-align:center;max-width:250px">Normalize <strong>before</strong> each sub-layer. More stable training for deep models (GPT-2+).</p>
+      </div>`;
+  } else {
+    area.innerHTML = `
+      <div class="diagram-col">
+        <h4>Post-Norm Transformer Block</h4>
+        ${makeBlock('block-input', 'Input x')}
+        ${makeArrow()}
+        ${makeBlock('block-attn', 'Self-Attention')}
+        ${makeArrow()}
+        ${makeBlock('block-add', 'Add (x + output)')}
+        ${makeArrow()}
+        ${makeBlock('block-ln', 'LayerNorm')}
+        ${makeArrow()}
+        ${makeBlock('block-ffn', 'Feed-Forward')}
+        ${makeArrow()}
+        ${makeBlock('block-add', 'Add (x + output)')}
+        ${makeArrow()}
+        ${makeBlock('block-ln', 'LayerNorm')}
+        ${makeArrow()}
+        ${makeBlock('block-input', 'Output')}
+        <p style="font-size:0.8rem;color:#a6adc8;margin-top:0.75rem;text-align:center;max-width:250px">Normalize <strong>after</strong> each sub-layer. Original "Attention Is All You Need" design.</p>
+      </div>`;
+  }
+}
+
+renderSliders();
+renderAll();
+renderGrids();
+renderDiagram('pre');
+</script>
+</body>
+</html>

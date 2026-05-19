@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flash Attention: Reading a Book Efficiently</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 { font-size: 1.7rem; color: #89b4fa; margin-bottom: 4px; text-align: center; }
+  .subtitle { color: #a6adc8; font-size: 0.92rem; margin-bottom: 16px; text-align: center; max-width: 700px; }
+
+  .token-strip {
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+    margin-bottom: 18px;
+  }
+  .token-chip {
+    background: #313244; border: 1px solid #585b70; border-radius: 8px;
+    padding: 7px 14px; font-size: 0.88rem; font-weight: 600; color: #cdd6f4;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .token-chip.active-q { border-color: #89b4fa; box-shadow: 0 0 8px rgba(137,180,250,0.3); }
+  .token-chip.active-k { border-color: #f38ba8; box-shadow: 0 0 8px rgba(243,139,168,0.3); }
+
+  .insight-bar {
+    display: flex; gap: 20px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .insight {
+    background: #313244; border-radius: 8px; padding: 10px 18px;
+    font-size: 0.88rem; border-left: 3px solid;
+  }
+  .insight.standard { border-color: #f38ba8; }
+  .insight.flash { border-color: #a6e3a1; }
+  .insight span { font-weight: 700; }
+  .insight.standard span { color: #f38ba8; }
+  .insight.flash span { color: #a6e3a1; }
+
+  .main-container {
+    display: flex; gap: 24px; flex-wrap: wrap; justify-content: center;
+    width: 100%; max-width: 1200px;
+  }
+  .left-panel, .right-panel {
+    background: #181825; border-radius: 12px; padding: 18px; border: 1px solid #313244;
+  }
+  .left-panel { flex: 0 0 auto; overflow-x: auto; }
+  .right-panel { flex: 1; min-width: 300px; max-width: 440px; }
+
+  .panel-title { font-size: 1rem; font-weight: 600; margin-bottom: 10px; color: #cba6f7; }
+
+  /* Attention grid table */
+  .attn-grid { border-collapse: collapse; }
+  .attn-grid th {
+    font-size: 0.62rem; color: #a6adc8; padding: 2px 3px;
+    max-width: 50px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 600;
+  }
+  .attn-grid th.row-label { text-align: right; padding-right: 6px; }
+  .attn-grid th.col-label { text-align: center; writing-mode: vertical-rl; transform: rotate(180deg); height: 55px; }
+  .attn-grid td {
+    width: 42px; height: 42px; text-align: center; font-size: 0.58rem;
+    border: 1px solid #313244; transition: background 0.35s, border-color 0.35s;
+    color: #a6adc8; position: relative;
+  }
+  .attn-grid td.cell-idle { background: #1e1e2e; }
+  .attn-grid td.cell-standard { border-color: #f38ba8; }
+  .attn-grid td.cell-tile-active {
+    border-color: #f9e2af; background: #f9e2af22;
+    box-shadow: inset 0 0 6px rgba(249,226,175,0.3);
+  }
+  .attn-grid td.cell-done {
+    border-color: #a6e3a155; background: #a6e3a118;
+  }
+
+  /* Memory counters */
+  .mem-box {
+    border-radius: 8px; padding: 12px; margin-bottom: 10px;
+  }
+  .mem-box.standard-mem { background: #3b1c2a; border: 1px solid #f38ba8; }
+  .mem-box.flash-mem { background: #1e3a2f; border: 1px solid #a6e3a1; }
+  .mem-label { font-weight: 700; font-size: 0.9rem; margin-bottom: 4px; }
+  .mem-label.std-l { color: #f38ba8; }
+  .mem-label.flash-l { color: #a6e3a1; }
+  .mem-detail { font-size: 0.82rem; color: #a6adc8; line-height: 1.6; }
+  .mem-detail .num { font-weight: 700; color: #f9e2af; font-size: 1rem; }
+
+  .mode-toggle {
+    display: flex; gap: 0; margin-bottom: 14px; border-radius: 8px; overflow: hidden;
+    border: 1px solid #45475a;
+  }
+  .mode-btn {
+    flex: 1; padding: 9px 0; text-align: center; font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; border: none; transition: background 0.2s, color 0.2s;
+    background: #313244; color: #a6adc8;
+  }
+  .mode-btn.active-std { background: #f38ba8; color: #1e1e2e; }
+  .mode-btn.active-flash { background: #a6e3a1; color: #1e1e2e; }
+
+  .step-description {
+    background: #313244; border-radius: 8px; padding: 12px; margin-bottom: 12px;
+    font-size: 0.85rem; color: #f9e2af; min-height: 50px; line-height: 1.5;
+  }
+
+  .analogy-box {
+    background: #313244; border-radius: 8px; padding: 14px; margin-bottom: 12px;
+    border-left: 3px solid #cba6f7;
+  }
+  .analogy-box .analogy-title { font-size: 0.85rem; font-weight: 700; color: #cba6f7; margin-bottom: 6px; }
+  .analogy-box p { font-size: 0.82rem; color: #a6adc8; line-height: 1.5; margin-bottom: 4px; }
+  .analogy-box strong { color: #cdd6f4; }
+
+  .result-box {
+    background: #1e3a2f; border: 1px solid #a6e3a1; border-radius: 8px;
+    padding: 12px; text-align: center; font-size: 0.88rem; color: #a6e3a1; font-weight: 600;
+  }
+
+  .controls {
+    display: flex; gap: 10px; align-items: center; justify-content: center;
+    margin-top: 18px; flex-wrap: wrap;
+  }
+  button {
+    background: #89b4fa; color: #1e1e2e; border: none; border-radius: 8px;
+    padding: 10px 20px; font-weight: 700; font-size: 0.88rem; cursor: pointer;
+    transition: background 0.2s;
+  }
+  button:hover { background: #74c7ec; }
+  button.reset { background: #f38ba8; }
+  button.reset:hover { background: #eba0ac; }
+  button.step-btn { background: #cba6f7; }
+  button.step-btn:hover { background: #b4befe; }
+  button:disabled { opacity: 0.4; cursor: default; }
+
+  .tile-size-control {
+    display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #a6adc8;
+  }
+  .tile-size-control select {
+    background: #313244; color: #cdd6f4; border: 1px solid #45475a;
+    border-radius: 6px; padding: 6px 10px; font-size: 0.85rem;
+  }
+
+  footer { margin-top: 28px; color: #585b70; font-size: 0.8rem; text-align: center; }
+
+  @media (max-width: 700px) {
+    .attn-grid td { width: 30px; height: 30px; font-size: 0.5rem; }
+    .attn-grid th { font-size: 0.55rem; }
+    .attn-grid th.col-label { height: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Flash Attention: Reading a Book Efficiently</h1>
+<p class="subtitle">Processing the sentence "The cat sat on the warm mat near the window" -- see how Flash Attention computes the same result using far less memory.</p>
+
+<div class="token-strip" id="tokenStrip"></div>
+
+<div class="insight-bar">
+  <div class="insight standard">Standard Attention: <span>O(N^2) memory -- load all 100 cells</span></div>
+  <div class="insight flash">Flash Attention: <span>O(N) memory -- only a few cells at a time</span></div>
+</div>
+
+<div class="main-container">
+  <div class="left-panel">
+    <div class="panel-title">Attention Matrix (10 x 10) -- "How much does word i attend to word j?"</div>
+    <table class="attn-grid" id="attnGrid"></table>
+  </div>
+
+  <div class="right-panel">
+    <div class="panel-title">Compare Methods</div>
+
+    <div class="mode-toggle">
+      <button class="mode-btn active-std" id="btnStandard" onclick="setMode('standard')">Standard Attention</button>
+      <button class="mode-btn" id="btnFlash" onclick="setMode('flash')">Flash Attention</button>
+    </div>
+
+    <div class="step-description" id="stepDesc">
+      Choose a mode above. In <strong>Standard</strong> mode, all 100 cells load at once. In <strong>Flash</strong> mode, step through tiles.
+    </div>
+
+    <div class="mem-box standard-mem">
+      <div class="mem-label std-l">Standard Attention Memory</div>
+      <div class="mem-detail" id="stdMemDetail">
+        Loads <span class="num">100</span> cells into memory at once (O(N^2))
+      </div>
+    </div>
+
+    <div class="mem-box flash-mem">
+      <div class="mem-label flash-l">Flash Attention Memory</div>
+      <div class="mem-detail" id="flashMemDetail">
+        Currently in memory: <span class="num" id="flashCellCount">0</span> cells at a time (O(N))
+      </div>
+    </div>
+
+    <div class="analogy-box">
+      <div class="analogy-title">Real-World Analogy</div>
+      <p><strong>Standard:</strong> Reading the ENTIRE book into your short-term memory at once. You need a huge desk to spread out all pages simultaneously.</p>
+      <p><strong>Flash:</strong> Reading one page at a time, keeping notes on a small notepad. Same understanding, much smaller desk needed.</p>
+    </div>
+
+    <div class="result-box" id="resultBox" style="display:none;">
+      Both compute exactly the same attention! Flash just does it smarter.
+    </div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="playBtn">&#9654; Play</button>
+  <button class="step-btn" id="stepBtn">Step &#187;</button>
+  <button class="reset" id="resetBtn">Reset</button>
+  <div class="tile-size-control">
+    <label for="tileSizeSelect">Tile size:</label>
+    <select id="tileSizeSelect">
+      <option value="2">2 x 2</option>
+      <option value="3">3 x 3</option>
+      <option value="5">5 x 5</option>
+    </select>
+  </div>
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+(function() {
+  const WORDS = ['The','cat','sat','on','the','warm','mat','near','the','window'];
+  const N = WORDS.length;
+
+  // Realistic attention weights: row i attends to column j
+  // "sat" strongly attends to "cat" and "mat"; "window" attends to "near" and "the"
+  const ATTN = [
+    [0.90, 0.02, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01],
+    [0.15, 0.70, 0.03, 0.02, 0.02, 0.02, 0.02, 0.01, 0.01, 0.02],
+    [0.05, 0.45, 0.20, 0.05, 0.03, 0.02, 0.15, 0.02, 0.01, 0.02],
+    [0.08, 0.05, 0.35, 0.25, 0.10, 0.05, 0.04, 0.03, 0.03, 0.02],
+    [0.30, 0.05, 0.05, 0.10, 0.30, 0.05, 0.05, 0.03, 0.04, 0.03],
+    [0.03, 0.05, 0.05, 0.03, 0.05, 0.55, 0.10, 0.04, 0.05, 0.05],
+    [0.03, 0.30, 0.20, 0.05, 0.04, 0.18, 0.10, 0.03, 0.03, 0.04],
+    [0.04, 0.03, 0.03, 0.08, 0.04, 0.05, 0.12, 0.45, 0.06, 0.10],
+    [0.20, 0.03, 0.03, 0.05, 0.25, 0.04, 0.04, 0.06, 0.25, 0.05],
+    [0.04, 0.03, 0.03, 0.03, 0.05, 0.06, 0.05, 0.22, 0.09, 0.40],
+  ];
+
+  let mode = 'standard'; // 'standard' | 'flash'
+  let tileSize = 2;
+  let tileSequence = [];
+  let currentTileIdx = -1;
+  let completedTiles = new Set();
+  let playing = false;
+  let timer = null;
+
+  const tokenStrip = document.getElementById('tokenStrip');
+  const attnGrid = document.getElementById('attnGrid');
+  const stepDesc = document.getElementById('stepDesc');
+  const flashCellCount = document.getElementById('flashCellCount');
+  const resultBox = document.getElementById('resultBox');
+
+  // Build token chips
+  function buildTokenStrip() {
+    tokenStrip.innerHTML = '';
+    WORDS.forEach((w, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'token-chip';
+      chip.textContent = w;
+      chip.id = 'chip-' + i;
+      tokenStrip.appendChild(chip);
+    });
+  }
+
+  // Build the grid table
+  function buildGrid() {
+    let html = '<tr><th></th>';
+    for (let c = 0; c < N; c++) html += '<th class="col-label">' + WORDS[c] + '</th>';
+    html += '</tr>';
+    for (let r = 0; r < N; r++) {
+      html += '<tr><th class="row-label">' + WORDS[r] + '</th>';
+      for (let c = 0; c < N; c++) {
+        const val = ATTN[r][c];
+        const pct = (val * 100).toFixed(0);
+        html += '<td class="cell-idle" id="cell-' + r + '-' + c + '" data-r="' + r + '" data-c="' + c + '">' + pct + '%</td>';
+      }
+      html += '</tr>';
+    }
+    attnGrid.innerHTML = html;
+  }
+
+  // Color a cell based on attention weight
+  function colorCell(r, c, state) {
+    const td = document.getElementById('cell-' + r + '-' + c);
+    if (!td) return;
+    const val = ATTN[r][c];
+    td.className = '';
+
+    if (state === 'idle') {
+      td.className = 'cell-idle';
+      td.style.background = '';
+    } else if (state === 'standard') {
+      // Red intensity based on weight
+      const alpha = 0.15 + val * 0.7;
+      td.style.background = 'rgba(243,139,168,' + alpha + ')';
+      td.className = 'cell-standard';
+    } else if (state === 'active') {
+      const alpha = 0.2 + val * 0.7;
+      td.style.background = 'rgba(249,226,175,' + alpha + ')';
+      td.className = 'cell-tile-active';
+    } else if (state === 'done') {
+      const alpha = 0.1 + val * 0.5;
+      td.style.background = 'rgba(166,227,161,' + alpha + ')';
+      td.className = 'cell-done';
+    }
+  }
+
+  // Build tile sequence
+  function buildTileSequence() {
+    tileSequence = [];
+    for (let ri = 0; ri < N; ri += tileSize) {
+      for (let ci = 0; ci < N; ci += tileSize) {
+        tileSequence.push({ ri, ci });
+      }
+    }
+  }
+
+  // Get words covered by a tile
+  function tileWords(ri, ci) {
+    const rEnd = Math.min(ri + tileSize, N);
+    const cEnd = Math.min(ci + tileSize, N);
+    const rows = WORDS.slice(ri, rEnd);
+    const cols = WORDS.slice(ci, cEnd);
+    return { rows, cols, rEnd, cEnd };
+  }
+
+  // Clear all highlights
+  function clearGrid() {
+    for (let r = 0; r < N; r++)
+      for (let c = 0; c < N; c++)
+        colorCell(r, c, 'idle');
+    document.querySelectorAll('.token-chip').forEach(ch => {
+      ch.classList.remove('active-q', 'active-k');
+    });
+  }
+
+  // Highlight token chips for current tile
+  function highlightChips(ri, ci) {
+    document.querySelectorAll('.token-chip').forEach(ch => {
+      ch.classList.remove('active-q', 'active-k');
+    });
+    const rEnd = Math.min(ri + tileSize, N);
+    const cEnd = Math.min(ci + tileSize, N);
+    for (let i = ri; i < rEnd; i++) {
+      const ch = document.getElementById('chip-' + i);
+      if (ch) ch.classList.add('active-q');
+    }
+    for (let i = ci; i < cEnd; i++) {
+      const ch = document.getElementById('chip-' + i);
+      if (ch) ch.classList.add('active-k');
+    }
+  }
+
+  // Standard mode: highlight everything at once
+  function showStandard() {
+    clearGrid();
+    for (let r = 0; r < N; r++)
+      for (let c = 0; c < N; c++)
+        colorCell(r, c, 'standard');
+    stepDesc.innerHTML = '<strong>Standard Attention:</strong> ALL ' + (N * N) + ' pairs loaded into memory simultaneously. Every word checks its relationship with every other word at the same time.';
+    flashCellCount.textContent = '0';
+    resultBox.style.display = 'none';
+  }
+
+  // Flash mode: render current state
+  function renderFlashState() {
+    clearGrid();
+
+    // Draw completed tiles
+    for (const key of completedTiles) {
+      const [ri, ci] = key.split(',').map(Number);
+      const rEnd = Math.min(ri + tileSize, N);
+      const cEnd = Math.min(ci + tileSize, N);
+      for (let r = ri; r < rEnd; r++)
+        for (let c = ci; c < cEnd; c++)
+          colorCell(r, c, 'done');
+    }
+
+    // Draw active tile
+    if (currentTileIdx >= 0 && currentTileIdx < tileSequence.length) {
+      const { ri, ci } = tileSequence[currentTileIdx];
+      const rEnd = Math.min(ri + tileSize, N);
+      const cEnd = Math.min(ci + tileSize, N);
+      const cellsInTile = (rEnd - ri) * (cEnd - ci);
+      for (let r = ri; r < rEnd; r++)
+        for (let c = ci; c < cEnd; c++)
+          colorCell(r, c, 'active');
+      highlightChips(ri, ci);
+
+      const tw = tileWords(ri, ci);
+      const rowStr = '"' + tw.rows.join(' ') + '"';
+      const colStr = '"' + tw.cols.join(' ') + '"';
+      stepDesc.innerHTML = '<strong>Step ' + (currentTileIdx + 1) + '/' + tileSequence.length + ':</strong> Processing ' + rowStr + ' attending to ' + colStr + ' (' + cellsInTile + ' cells in memory)';
+      flashCellCount.textContent = cellsInTile;
+    } else if (currentTileIdx >= tileSequence.length) {
+      // Done - show all as done
+      for (let r = 0; r < N; r++)
+        for (let c = 0; c < N; c++)
+          colorCell(r, c, 'done');
+      const ts = tileSize;
+      const cellsPerTile = ts * ts;
+      stepDesc.innerHTML = '<strong>Complete!</strong> All tiles processed. Max memory used at any point: ' + cellsPerTile + ' cells. Standard would need ' + (N * N) + ' cells.';
+      flashCellCount.textContent = '0 (done)';
+      resultBox.style.display = 'block';
+    } else {
+      stepDesc.innerHTML = 'Press <strong>Play</strong> or <strong>Step</strong> to walk through Flash Attention tiles of size ' + tileSize + 'x' + tileSize + '.';
+      flashCellCount.textContent = '0';
+    }
+  }
+
+  function setMode(m) {
+    mode = m;
+    stopPlay();
+    currentTileIdx = -1;
+    completedTiles.clear();
+    resultBox.style.display = 'none';
+
+    document.getElementById('btnStandard').className = 'mode-btn' + (m === 'standard' ? ' active-std' : '');
+    document.getElementById('btnFlash').className = 'mode-btn' + (m === 'flash' ? ' active-flash' : '');
+
+    document.getElementById('playBtn').disabled = (m === 'standard');
+    document.getElementById('stepBtn').disabled = (m === 'standard');
+
+    if (m === 'standard') {
+      showStandard();
+    } else {
+      buildTileSequence();
+      renderFlashState();
+    }
+  }
+  window.setMode = setMode;
+
+  function advanceStep() {
+    if (mode !== 'flash') return;
+    if (currentTileIdx < tileSequence.length - 1) {
+      currentTileIdx++;
+      const { ri, ci } = tileSequence[currentTileIdx];
+      completedTiles.add(ri + ',' + ci);
+      renderFlashState();
+    } else if (currentTileIdx === tileSequence.length - 1) {
+      currentTileIdx++;
+      renderFlashState();
+      stopPlay();
+    }
+  }
+
+  function startPlay() {
+    if (playing) return;
+    if (mode !== 'flash') return;
+    if (currentTileIdx >= tileSequence.length) {
+      // Reset first
+      currentTileIdx = -1;
+      completedTiles.clear();
+      resultBox.style.display = 'none';
+    }
+    playing = true;
+    document.getElementById('playBtn').innerHTML = '&#9646;&#9646; Pause';
+    tick();
+  }
+
+  function tick() {
+    if (!playing) return;
+    advanceStep();
+    if (playing && currentTileIdx < tileSequence.length) {
+      timer = setTimeout(tick, 600);
+    } else {
+      stopPlay();
+    }
+  }
+
+  function stopPlay() {
+    playing = false;
+    clearTimeout(timer);
+    document.getElementById('playBtn').innerHTML = '&#9654; Play';
+  }
+
+  function resetAll() {
+    stopPlay();
+    currentTileIdx = -1;
+    completedTiles.clear();
+    resultBox.style.display = 'none';
+    if (mode === 'standard') showStandard();
+    else renderFlashState();
+  }
+
+  document.getElementById('playBtn').addEventListener('click', () => {
+    playing ? stopPlay() : startPlay();
+  });
+  document.getElementById('stepBtn').addEventListener('click', () => {
+    stopPlay();
+    advanceStep();
+  });
+  document.getElementById('resetBtn').addEventListener('click', resetAll);
+  document.getElementById('tileSizeSelect').addEventListener('change', (e) => {
+    tileSize = parseInt(e.target.value);
+    if (mode === 'flash') {
+      stopPlay();
+      currentTileIdx = -1;
+      completedTiles.clear();
+      resultBox.style.display = 'none';
+      buildTileSequence();
+      renderFlashState();
+    }
+  });
+
+  // Init
+  buildTokenStrip();
+  buildGrid();
+  buildTileSequence();
+  setMode('standard');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RoPE: How Transformers Know Word Order</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 { color: #89b4fa; font-size: 1.6rem; margin-bottom: 4px; text-align: center; }
+  .subtitle { color: #a6adc8; font-size: 0.88rem; margin-bottom: 18px; text-align: center; max-width: 700px; }
+
+  .section { width: 100%; max-width: 1100px; margin-bottom: 18px; }
+  .section-title { color: #cba6f7; font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+
+  /* Sentence boxes */
+  .sentence-row {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    margin-bottom: 12px; min-height: 60px; align-items: flex-end;
+  }
+  .word-box {
+    background: #313244; border: 2px solid #45475a; border-radius: 8px;
+    padding: 8px 14px; text-align: center; cursor: grab; user-select: none;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+    min-width: 56px;
+  }
+  .word-box:hover { border-color: #89b4fa; transform: translateY(-2px); }
+  .word-box.dragging { opacity: 0.5; transform: scale(0.95); }
+  .word-box.drag-over { border-color: #f9e2af; box-shadow: 0 0 10px rgba(249,226,175,0.3); }
+  .word-box .word { font-weight: 700; font-size: 1rem; color: #cdd6f4; }
+  .word-box .pos { font-size: 0.72rem; color: #a6adc8; margin-top: 2px; }
+  .word-box.highlight-a { border-color: #f38ba8; box-shadow: 0 0 12px rgba(243,139,168,0.4); }
+  .word-box.highlight-b { border-color: #a6e3a1; box-shadow: 0 0 12px rgba(166,227,161,0.4); }
+
+  .drag-hint { color: #585b70; font-size: 0.78rem; text-align: center; margin-bottom: 10px; }
+
+  /* Canvas area */
+  .canvas-area {
+    display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;
+    width: 100%; max-width: 1100px;
+  }
+  .canvas-panel {
+    background: #181825; border: 1px solid #313244; border-radius: 12px;
+    padding: 16px; flex: 1 1 420px; max-width: 540px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .canvas-panel h3 { color: #89b4fa; font-size: 0.95rem; margin-bottom: 8px; }
+  canvas {
+    border-radius: 8px; background: #11111b;
+    width: 100%; max-width: 460px; aspect-ratio: 1;
+  }
+  .canvas-caption { color: #a6adc8; font-size: 0.78rem; margin-top: 6px; text-align: center; line-height: 1.5; }
+
+  /* Controls */
+  .controls-row {
+    display: flex; flex-wrap: wrap; gap: 16px; justify-content: center;
+    width: 100%; max-width: 1100px; margin-bottom: 14px;
+  }
+  .ctrl-group {
+    background: #181825; border: 1px solid #313244; border-radius: 10px;
+    padding: 14px 18px; flex: 1 1 240px; max-width: 360px;
+  }
+  .ctrl-group label { display: block; font-weight: 600; color: #cba6f7; font-size: 0.88rem; margin-bottom: 4px; }
+  .ctrl-group .val { color: #f9e2af; font-size: 0.85rem; margin-bottom: 4px; }
+  input[type="range"] {
+    -webkit-appearance: none; width: 100%; height: 6px;
+    border-radius: 3px; background: #313244; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    border-radius: 50%; background: #89b4fa; cursor: pointer; border: 2px solid #1e1e2e;
+  }
+  .presets { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .presets button, .toggle-btn {
+    background: #313244; color: #cdd6f4; border: 1px solid #45475a;
+    border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 0.8rem;
+    transition: background 0.2s;
+  }
+  .presets button:hover, .toggle-btn:hover { background: #45475a; }
+  .presets button.active, .toggle-btn.active { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; }
+
+  /* Info boxes */
+  .insight-box {
+    background: #181825; border: 1px solid #313244; border-radius: 10px;
+    padding: 14px 18px; width: 100%; max-width: 1100px; margin-bottom: 14px;
+    line-height: 1.65; font-size: 0.88rem;
+  }
+  .insight-box .key { color: #a6e3a1; font-weight: 700; }
+  .insight-box .hl { color: #f9e2af; }
+  .insight-box .accent { color: #f38ba8; }
+  .insight-box .blue { color: #89b4fa; }
+
+  .compare-panel {
+    display: flex; flex-wrap: wrap; gap: 14px; width: 100%; max-width: 1100px; margin-bottom: 14px;
+  }
+  .compare-card {
+    background: #181825; border: 1px solid #313244; border-radius: 10px;
+    padding: 14px 18px; flex: 1 1 300px; line-height: 1.6; font-size: 0.85rem;
+  }
+  .compare-card h4 { margin-bottom: 6px; font-size: 0.95rem; }
+  .compare-card.bad h4 { color: #f38ba8; }
+  .compare-card.good h4 { color: #a6e3a1; }
+
+  footer { margin-top: 20px; color: #585b70; font-size: 0.75rem; text-align: center; }
+
+  @media (max-width: 600px) {
+    .canvas-panel { max-width: 100%; }
+    .ctrl-group { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>RoPE: How Transformers Know Word Order</h1>
+<p class="subtitle">Rotary Positional Embeddings encode word position by rotating vectors. The angle between two words encodes their distance -- not their absolute position.</p>
+
+<!-- Sentence display -->
+<div class="section">
+  <div class="section-title">The Sentence</div>
+  <div class="drag-hint">Drag words to rearrange -- watch how the vectors rotate to new positions</div>
+  <div class="sentence-row" id="sentenceRow"></div>
+</div>
+
+<!-- Canvas area -->
+<div class="canvas-area">
+  <div class="canvas-panel">
+    <h3>Vector Rotation Diagram</h3>
+    <canvas id="ropeCanvas" width="460" height="460"></canvas>
+    <div class="canvas-caption" id="canvasCaption">Each word's vector is rotated by its position. The angle between "cat" and "mat" encodes their distance.</div>
+  </div>
+  <div class="canvas-panel">
+    <h3>Distance Visualization</h3>
+    <canvas id="distCanvas" width="460" height="460"></canvas>
+    <div class="canvas-caption" id="distCaption">RoPE only cares about relative distance. Positions (1,5) and (101,105) produce the same attention.</div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls-row">
+  <div class="ctrl-group">
+    <label>Base theta (controls max context length)</label>
+    <div class="val" id="baseVal">theta = 10,000 (BERT-length, ~512 tokens)</div>
+    <input type="range" id="baseSlider" min="0" max="1000" value="385" step="1">
+    <div class="presets">
+      <button onclick="setBase(10000)">10,000 (BERT)</button>
+      <button onclick="setBase(160000)">160,000 (ModernBERT)</button>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <label>Sentence length (collision test)</label>
+    <div class="val" id="lenVal">10 words</div>
+    <div class="presets">
+      <button class="toggle-btn active" data-len="10">10 words</button>
+      <button class="toggle-btn" data-len="100">100 words</button>
+      <button class="toggle-btn" data-len="1000">1000 words</button>
+    </div>
+    <div style="margin-top:8px;font-size:0.8rem;color:#a6adc8;" id="collisionInfo">At low base, distant words overlap. At high base, they stay distinct.</div>
+  </div>
+</div>
+
+<!-- Key Insight -->
+<div class="insight-box">
+  <span class="key">Key insight:</span> RoPE doesn't care about absolute position. It only cares about <span class="hl">DISTANCE</span> between words.
+  "<span class="accent">cat</span>...<span class="accent">mat</span>" at positions <span class="blue">(1, 5)</span> gives the <em>same attention</em> as at positions <span class="blue">(101, 105)</span>.
+  The distance is <span class="hl" id="distDisplay">4</span> either way -- same rotation angle between them.
+</div>
+
+<!-- Compare panel -->
+<div class="compare-panel">
+  <div class="compare-card bad">
+    <h4>Absolute Embeddings (original BERT)</h4>
+    Position 513 = CRASH. The model has never seen it during training.<br>
+    Each position gets a <em>fixed, learned</em> vector. No position 513 in the table? No embedding. Output is garbage or an error.<br>
+    <span style="color:#f38ba8;">Hard limit: 512 tokens. Period.</span>
+  </div>
+  <div class="compare-card good">
+    <h4>RoPE (Modern Transformers)</h4>
+    Position 513 = just another rotation. Works fine.<br>
+    The formula <code>angle = position x theta</code> works for <em>any</em> number. Nothing to look up, nothing to crash on.<br>
+    <span style="color:#a6e3a1;">With high base theta, handles 8,192+ tokens smoothly.</span>
+  </div>
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+// --- State ---
+let words = ["The", "cat", "sat", "on", "the", "mat"];
+let highlightA = 1; // "cat"
+let highlightB = 5; // "mat"
+let base = 10000;
+let sentenceLen = 10;
+const D = 128;
+
+// --- Sentence rendering with drag-and-drop ---
+const sentenceRow = document.getElementById('sentenceRow');
+
+function renderSentence() {
+  sentenceRow.innerHTML = '';
+  words.forEach((w, i) => {
+    const box = document.createElement('div');
+    box.className = 'word-box';
+    if (i === highlightA) box.classList.add('highlight-a');
+    if (i === highlightB) box.classList.add('highlight-b');
+    box.draggable = true;
+    box.dataset.idx = i;
+    box.innerHTML = `<div class="word">${w}</div><div class="pos">pos ${i}</div>`;
+
+    box.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', i);
+      box.classList.add('dragging');
+    });
+    box.addEventListener('dragend', () => box.classList.remove('dragging'));
+    box.addEventListener('dragover', (e) => { e.preventDefault(); box.classList.add('drag-over'); });
+    box.addEventListener('dragleave', () => box.classList.remove('drag-over'));
+    box.addEventListener('drop', (e) => {
+      e.preventDefault();
+      box.classList.remove('drag-over');
+      const from = parseInt(e.dataTransfer.getData('text/plain'));
+      const to = i;
+      if (from !== to) {
+        const item = words.splice(from, 1)[0];
+        words.splice(to, 0, item);
+        // Update highlight indices to follow the words "cat" and "mat"
+        highlightA = words.indexOf("cat");
+        highlightB = words.indexOf("mat");
+        if (highlightA === -1) highlightA = 0;
+        if (highlightB === -1) highlightB = words.length - 1;
+        renderSentence();
+        drawAll();
+      }
+    });
+    sentenceRow.appendChild(box);
+  });
+}
+
+// --- Base theta slider ---
+const baseSlider = document.getElementById('baseSlider');
+const baseValEl = document.getElementById('baseVal');
+
+function logScale(val) {
+  const minLog = Math.log(1000);
+  const maxLog = Math.log(500000);
+  return Math.exp(minLog + (val / 1000) * (maxLog - minLog));
+}
+function invLogScale(b) {
+  const minLog = Math.log(1000);
+  const maxLog = Math.log(500000);
+  return ((Math.log(b) - minLog) / (maxLog - minLog)) * 1000;
+}
+function setBase(val) {
+  base = val;
+  baseSlider.value = invLogScale(val);
+  updateBaseDisplay();
+  drawAll();
+}
+function updateBaseDisplay() {
+  let desc = '';
+  if (base < 15000) desc = `theta = ${Math.round(base).toLocaleString()} (BERT-length, ~512 tokens)`;
+  else if (base < 100000) desc = `theta = ${Math.round(base).toLocaleString()} (mid-range)`;
+  else desc = `theta = ${Math.round(base).toLocaleString()} (ModernBERT, ~8192 tokens)`;
+  baseValEl.textContent = desc;
+
+  document.querySelectorAll('.presets button').forEach(btn => {
+    const t = btn.textContent;
+    const val = t.includes('10,000') ? 10000 : t.includes('160,000') ? 160000 : 0;
+    btn.classList.toggle('active', Math.abs(base - val) < val * 0.05);
+  });
+}
+baseSlider.addEventListener('input', () => {
+  base = logScale(parseFloat(baseSlider.value));
+  updateBaseDisplay();
+  drawAll();
+});
+
+// --- Sentence length toggle ---
+document.querySelectorAll('.toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sentenceLen = parseInt(btn.dataset.len);
+    document.getElementById('lenVal').textContent = sentenceLen + ' words';
+    drawAll();
+  });
+});
+
+// --- Drawing ---
+const ropeCanvas = document.getElementById('ropeCanvas');
+const ropeCtx = ropeCanvas.getContext('2d');
+const distCanvas = document.getElementById('distCanvas');
+const distCtx = distCanvas.getContext('2d');
+
+const COLORS = {
+  cat: '#f38ba8',
+  mat: '#a6e3a1',
+  other: '#89b4fa',
+  ghost: '#585b70',
+  grid: '#313244',
+  circle: '#45475a',
+  text: '#cdd6f4',
+  dim: '#a6adc8',
+  gold: '#f9e2af',
+  purple: '#cba6f7',
+};
+
+function getAngle(pos, theta_base) {
+  // For dimension pair 0 (most visible rotation)
+  const theta_i = Math.pow(theta_base, -2 * 0 / D);
+  return pos * theta_i;
+}
+
+function drawArrow(ctx, cx, cy, r, angle, color, lineWidth, label, labelOffset) {
+  const ex = cx + r * Math.cos(-angle);
+  const ey = cy + r * Math.sin(-angle);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+  // Arrowhead
+  const headLen = 8 * (lineWidth / 2);
+  const a = Math.atan2(ey - cy, ex - cx);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - headLen * Math.cos(a - 0.35), ey - headLen * Math.sin(a - 0.35));
+  ctx.lineTo(ex - headLen * Math.cos(a + 0.35), ey - headLen * Math.sin(a + 0.35));
+  ctx.closePath();
+  ctx.fill();
+  // Label
+  if (label) {
+    const lo = labelOffset || 22;
+    const lx = cx + (r + lo) * Math.cos(-angle);
+    const ly = cy + (r + lo) * Math.sin(-angle);
+    ctx.fillStyle = color;
+    ctx.font = 'bold 12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx, ly);
+  }
+}
+
+function drawArc(ctx, cx, cy, r, startAngle, endAngle, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  // Draw arc (going clockwise in our coordinate system)
+  const a1 = -startAngle;
+  const a2 = -endAngle;
+  ctx.arc(cx, cy, r, Math.min(a1, a2), Math.max(a1, a2));
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawRopeCanvas() {
+  const w = ropeCanvas.width, h = ropeCanvas.height;
+  const cx = w / 2, cy = h / 2;
+  const radius = Math.min(w, h) * 0.36;
+  ropeCtx.clearRect(0, 0, w, h);
+
+  // Grid lines
+  ropeCtx.strokeStyle = COLORS.grid;
+  ropeCtx.lineWidth = 1;
+  ropeCtx.beginPath();
+  ropeCtx.moveTo(0, cy); ropeCtx.lineTo(w, cy);
+  ropeCtx.moveTo(cx, 0); ropeCtx.lineTo(cx, h);
+  ropeCtx.stroke();
+
+  // Unit circle
+  ropeCtx.strokeStyle = COLORS.circle;
+  ropeCtx.lineWidth = 1.5;
+  ropeCtx.beginPath();
+  ropeCtx.arc(cx, cy, radius, 0, 2 * Math.PI);
+  ropeCtx.stroke();
+
+  // Draw all word vectors
+  words.forEach((word, i) => {
+    const angle = getAngle(i, base);
+    let color = COLORS.ghost;
+    let lw = 1.5;
+    let label = null;
+
+    if (i === highlightA) { color = COLORS.cat; lw = 2.5; label = `"${word}" (pos ${i})`; }
+    else if (i === highlightB) { color = COLORS.mat; lw = 2.5; label = `"${word}" (pos ${i})`; }
+    else { label = `"${word}" (${i})`; }
+
+    const alpha = (i === highlightA || i === highlightB) ? 1 : 0.45;
+    ropeCtx.globalAlpha = alpha;
+    drawArrow(ropeCtx, cx, cy, radius * 0.9, angle, color, lw, label, 28);
+    ropeCtx.globalAlpha = 1;
+  });
+
+  // Draw arc showing distance between highlighted words
+  if (highlightA >= 0 && highlightB >= 0) {
+    const angleA = getAngle(highlightA, base);
+    const angleB = getAngle(highlightB, base);
+    drawArc(ropeCtx, cx, cy, radius * 0.5, angleA, angleB, COLORS.gold);
+    // Label the arc
+    const midAngle = -(angleA + angleB) / 2;
+    const dist = Math.abs(highlightB - highlightA);
+    ropeCtx.fillStyle = COLORS.gold;
+    ropeCtx.font = 'bold 13px system-ui';
+    ropeCtx.textAlign = 'center';
+    ropeCtx.fillText(`distance = ${dist}`, cx + radius * 0.4 * Math.cos(midAngle), cy + radius * 0.4 * Math.sin(midAngle));
+  }
+
+  // Origin dot
+  ropeCtx.beginPath();
+  ropeCtx.arc(cx, cy, 4, 0, 2 * Math.PI);
+  ropeCtx.fillStyle = COLORS.text;
+  ropeCtx.fill();
+
+  // Title annotation
+  ropeCtx.fillStyle = COLORS.dim;
+  ropeCtx.font = '11px system-ui';
+  ropeCtx.textAlign = 'center';
+  ropeCtx.fillText('Each word vector is rotated by: angle = position x theta', cx, h - 8);
+
+  // Update caption
+  const dist = Math.abs(highlightB - highlightA);
+  document.getElementById('canvasCaption').textContent =
+    `"${words[highlightA] || '?'}" is at position ${highlightA}, "${words[highlightB] || '?'}" is at position ${highlightB}. Distance = ${dist} positions apart.`;
+  document.getElementById('distDisplay').textContent = dist;
+}
+
+function drawDistCanvas() {
+  const w = distCanvas.width, h = distCanvas.height;
+  distCtx.clearRect(0, 0, w, h);
+
+  // Show collision visualization for different sentence lengths
+  const cx = w / 2, cy = h / 2;
+  const radius = Math.min(w, h) * 0.38;
+
+  // Background circle
+  distCtx.strokeStyle = COLORS.circle;
+  distCtx.lineWidth = 1.5;
+  distCtx.beginPath();
+  distCtx.arc(cx, cy, radius, 0, 2 * Math.PI);
+  distCtx.stroke();
+
+  // Grid
+  distCtx.strokeStyle = COLORS.grid;
+  distCtx.lineWidth = 1;
+  distCtx.beginPath();
+  distCtx.moveTo(0, cy); distCtx.lineTo(w, cy);
+  distCtx.moveTo(cx, 0); distCtx.lineTo(cx, h);
+  distCtx.stroke();
+
+  // Plot dots for each word position in sentenceLen
+  const dots = [];
+  let collisionCount = 0;
+  const threshold = 0.08; // radians -- if two vectors are within this, they "collide"
+
+  for (let i = 0; i < sentenceLen; i++) {
+    const angle = getAngle(i, base);
+    const normAngle = angle % (2 * Math.PI);
+    const ex = cx + radius * 0.88 * Math.cos(-angle);
+    const ey = cy + radius * 0.88 * Math.sin(-angle);
+    dots.push({ x: ex, y: ey, angle: normAngle, pos: i });
+  }
+
+  // Detect near-collisions (positions that map to nearly the same angle mod 2pi)
+  for (let i = 0; i < dots.length; i++) {
+    for (let j = i + 1; j < dots.length; j++) {
+      let diff = Math.abs(dots[i].angle - dots[j].angle);
+      diff = Math.min(diff, 2 * Math.PI - diff);
+      if (diff < threshold && Math.abs(dots[i].pos - dots[j].pos) > 2) {
+        collisionCount++;
+      }
+    }
+  }
+
+  // Draw dots
+  const dotSize = sentenceLen <= 10 ? 5 : sentenceLen <= 100 ? 3 : 1.5;
+  dots.forEach((d, i) => {
+    distCtx.beginPath();
+    distCtx.arc(d.x, d.y, dotSize, 0, 2 * Math.PI);
+    if (i === 0) distCtx.fillStyle = COLORS.cat;
+    else if (i === sentenceLen - 1) distCtx.fillStyle = COLORS.mat;
+    else distCtx.fillStyle = COLORS.other;
+    distCtx.globalAlpha = sentenceLen > 100 ? 0.5 : 0.75;
+    distCtx.fill();
+    distCtx.globalAlpha = 1;
+  });
+
+  // Labels for first and last
+  if (sentenceLen <= 10) {
+    dots.forEach((d, i) => {
+      distCtx.fillStyle = COLORS.dim;
+      distCtx.font = '10px system-ui';
+      distCtx.textAlign = 'center';
+      distCtx.fillText(`pos ${i}`, d.x, d.y - 10);
+    });
+  } else {
+    distCtx.fillStyle = COLORS.cat;
+    distCtx.font = '11px system-ui';
+    distCtx.textAlign = 'center';
+    distCtx.fillText('pos 0', dots[0].x, dots[0].y - 10);
+    distCtx.fillStyle = COLORS.mat;
+    distCtx.fillText(`pos ${sentenceLen - 1}`, dots[dots.length - 1].x, dots[dots.length - 1].y - 10);
+  }
+
+  // Origin
+  distCtx.beginPath();
+  distCtx.arc(cx, cy, 3, 0, 2 * Math.PI);
+  distCtx.fillStyle = COLORS.text;
+  distCtx.fill();
+
+  // Collision report
+  const collInfo = document.getElementById('collisionInfo');
+  const baseLabel = base < 15000 ? 'LOW base' : base > 100000 ? 'HIGH base' : 'medium base';
+  if (collisionCount > 0) {
+    collInfo.innerHTML = `<span style="color:#f38ba8;">WARNING: ${collisionCount} near-collisions detected!</span> At ${baseLabel} (theta=${Math.round(base).toLocaleString()}) with ${sentenceLen} words, distant word vectors overlap -- the model confuses their positions.`;
+  } else {
+    collInfo.innerHTML = `<span style="color:#a6e3a1;">No collisions.</span> At ${baseLabel} (theta=${Math.round(base).toLocaleString()}) with ${sentenceLen} words, all vectors remain distinct.`;
+  }
+
+  // Info text
+  distCtx.fillStyle = COLORS.dim;
+  distCtx.font = '11px system-ui';
+  distCtx.textAlign = 'center';
+  distCtx.fillText(`${sentenceLen} word positions on the unit circle (base theta = ${Math.round(base).toLocaleString()})`, cx, h - 24);
+
+  const status = collisionCount > 0 ? 'COLLISIONS -- vectors overlap!' : 'All positions distinct';
+  distCtx.fillStyle = collisionCount > 0 ? COLORS.cat : COLORS.mat;
+  distCtx.font = 'bold 12px system-ui';
+  distCtx.fillText(status, cx, h - 8);
+
+  document.getElementById('distCaption').textContent =
+    `Higher base theta = slower rotation = vectors stay distinct for longer sequences. Currently: ${sentenceLen} words, theta=${Math.round(base).toLocaleString()}.`;
+}
+
+function drawAll() {
+  drawRopeCanvas();
+  drawDistCanvas();
+}
+
+// --- Init ---
+renderSentence();
+setBase(10000);
+drawAll();
+</script>
+</body>
+</html>

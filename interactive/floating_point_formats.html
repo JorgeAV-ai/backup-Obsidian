@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Floating Point Formats: FP32 vs FP16 vs BF16</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:18px;font-size:1.5rem;color:#cba6f7;letter-spacing:1px}
+.container{display:flex;flex-wrap:wrap;gap:16px;padding:0 20px 20px;flex:1;justify-content:center;align-items:flex-start}
+.main-col{flex:1;min-width:420px;max-width:780px;display:flex;flex-direction:column;gap:16px}
+.side-col{width:340px;display:flex;flex-direction:column;gap:16px}
+.card{background:#181825;border-radius:12px;border:1px solid #313244;padding:18px}
+.card h2{font-size:1rem;color:#89b4fa;margin-bottom:12px}
+.bit-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.bit-row .label{width:50px;font-weight:700;font-size:.9rem;text-align:right;flex-shrink:0}
+.bits{display:flex;gap:1px;flex-wrap:nowrap}
+.bit{width:18px;height:26px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:700;color:#1e1e2e;transition:transform .3s,opacity .3s}
+.bit.sign{background:#f38ba8}
+.bit.exp{background:#89b4fa}
+.bit.man{background:#a6e3a1}
+.bit.ghost{opacity:0.15;transform:scaleY(0.6)}
+.bit-legend{display:flex;gap:14px;justify-content:center;font-size:.78rem;margin:10px 0 4px}
+.bit-legend span{display:flex;align-items:center;gap:4px}
+.bit-legend .swatch{width:14px;height:14px;border-radius:3px;display:inline-block}
+
+/* Animation controls */
+.anim-controls{display:flex;gap:10px;justify-content:center;margin:12px 0 4px}
+.btn{background:#cba6f7;color:#1e1e2e;border:none;padding:8px 20px;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;transition:background .2s}
+.btn:hover{background:#b4befe}
+.btn:disabled{opacity:0.4;cursor:default}
+.btn.active{background:#a6e3a1}
+
+/* Animated format cards */
+.fmt-card{background:#11111b;border-radius:10px;padding:16px;margin-bottom:10px;transition:border-color .3s;border:2px solid transparent}
+.fmt-card.highlight{border-color:#cba6f7}
+.fmt-card .fmt-title{font-weight:700;font-size:1rem;margin-bottom:6px}
+.fmt-card .fmt-subtitle{font-size:.78rem;color:#a6adc8;margin-bottom:10px}
+.fmt-card .stat-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+.fmt-card .stat{font-size:.8rem}
+.fmt-card .stat b{color:#f9e2af}
+
+/* Range bar */
+.range-section{margin-top:8px}
+.range-bar{position:relative;height:32px;background:#313244;border-radius:6px;margin:8px 0;overflow:visible}
+.range-fill{position:absolute;top:0;height:100%;border-radius:6px;transition:width .6s,left .6s;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#1e1e2e}
+.range-label{font-size:.72rem;color:#a6adc8;display:flex;justify-content:space-between;margin-top:2px}
+
+/* Precision demo */
+.precision-table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:8px;table-layout:fixed}
+.precision-table th,.precision-table td{text-align:left;padding:6px 8px;width:25%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.precision-table th{color:#89b4fa;border-bottom:1px solid #313244}
+.precision-table td{font-family:'Courier New',monospace;border-bottom:1px solid #1e1e2e}
+.precision-table .lost{color:#f38ba8;text-decoration:line-through;opacity:0.6}
+.precision-table .kept{color:#a6e3a1}
+.precision-table .val{color:#f9e2af}
+
+/* Converter */
+.converter input[type=number]{background:#11111b;border:1px solid #313244;color:#cdd6f4;padding:8px 12px;border-radius:6px;width:100%;font-family:monospace;font-size:1rem;margin-bottom:10px}
+.conv-result{font-family:monospace;font-size:.82rem;line-height:1.8}
+.conv-result .ok{color:#a6e3a1}
+.conv-result .warn{color:#fab387}
+.conv-result .fail{color:#f38ba8}
+.conv-bits{display:flex;gap:1px;margin:4px 0 8px;flex-wrap:wrap}
+
+/* Animated number line */
+.numberline{position:relative;height:80px;margin:10px 0}
+.nl-axis{position:absolute;top:50%;left:0;right:0;height:2px;background:#585b70}
+.nl-tick{position:absolute;top:50%;width:2px;height:12px;background:#a6adc8;transform:translateY(-50%)}
+.nl-marker{position:absolute;top:8px;width:10px;height:10px;border-radius:50%;transform:translateX(-50%);transition:left 1s cubic-bezier(.4,0,.2,1)}
+.nl-label{position:absolute;top:62px;font-size:.65rem;transform:translateX(-50%);white-space:nowrap}
+
+/* Step animation */
+.step-box{background:#11111b;border-radius:8px;padding:14px;min-height:100px;transition:opacity .3s}
+.step-box .step-title{font-weight:700;color:#cba6f7;margin-bottom:6px;font-size:.9rem}
+.step-box .step-body{font-size:.82rem;color:#cdd6f4;line-height:1.6}
+.step-box .step-body code{background:#313244;padding:2px 6px;border-radius:4px;font-size:.8rem}
+.step-indicator{display:flex;gap:6px;justify-content:center;margin:8px 0}
+.step-dot{width:10px;height:10px;border-radius:50%;background:#313244;transition:background .3s}
+.step-dot.active{background:#cba6f7}
+.step-dot.done{background:#a6e3a1}
+
+footer{text-align:center;padding:16px;font-size:.75rem;color:#585b70;border-top:1px solid #313244}
+@media(max-width:860px){.container{flex-direction:column;align-items:center}.side-col{width:100%;max-width:540px}.main-col{max-width:100%}}
+</style>
+</head>
+<body>
+<h1>Floating Point Formats: FP32 vs FP16 vs BF16</h1>
+<div class="container">
+  <div class="main-col">
+
+    <!-- Bit Layout Comparison -->
+    <div class="card">
+      <h2>Bit Layout Comparison</h2>
+      <div id="bitLayouts"></div>
+      <div class="bit-legend">
+        <span><span class="swatch" style="background:#f38ba8"></span> Sign (1 bit)</span>
+        <span><span class="swatch" style="background:#89b4fa"></span> Exponent</span>
+        <span><span class="swatch" style="background:#a6e3a1"></span> Mantissa</span>
+      </div>
+      <div style="font-size:.78rem;color:#a6adc8;margin-top:8px;text-align:center">
+        BF16 keeps FP32's exponent (same range) but truncates mantissa (less precision).
+        FP16 balances both but has very limited range.
+      </div>
+    </div>
+
+    <!-- Animated Step-by-Step: How a float is stored -->
+    <div class="card">
+      <h2>How a Float is Stored (Animated)</h2>
+      <div class="step-indicator" id="stepIndicator"></div>
+      <div class="step-box" id="stepBox"></div>
+      <div class="anim-controls">
+        <button class="btn" id="stepPrev" disabled>&larr; Back</button>
+        <button class="btn" id="stepNext">Next &rarr;</button>
+        <button class="btn" id="stepAuto">&#9654; Auto</button>
+        <button class="btn" id="stepReset">Reset</button>
+      </div>
+    </div>
+
+    <!-- Dynamic Range Comparison -->
+    <div class="card">
+      <h2>Dynamic Range Comparison</h2>
+      <div class="range-section">
+        <div style="font-size:.8rem;margin-bottom:4px;color:#a6adc8">Maximum representable value (log scale):</div>
+        <div class="range-bar">
+          <div class="range-fill" id="rangeFP32" style="background:#89b4fa;width:0;left:0">FP32</div>
+        </div>
+        <div class="range-bar">
+          <div class="range-fill" id="rangeBF16" style="background:#f9e2af;width:0;left:0">BF16</div>
+        </div>
+        <div class="range-bar">
+          <div class="range-fill" id="rangeFP16" style="background:#a6e3a1;width:0;left:0">FP16</div>
+        </div>
+        <div class="range-label">
+          <span>1</span>
+          <span>65504 (FP16 max)</span>
+          <span>3.4 &times; 10<sup>38</sup></span>
+        </div>
+      </div>
+      <div style="font-size:.78rem;color:#a6adc8;margin-top:10px;line-height:1.6">
+        FP32 and BF16 share the same 8-bit exponent &rarr; identical range (~3.4&times;10<sup>38</sup>).<br>
+        FP16 has only 5 exponent bits &rarr; max value is just 65,504. Large gradients overflow!
+      </div>
+    </div>
+  </div>
+
+  <div class="side-col">
+
+    <!-- Precision Loss Demo -->
+    <div class="card">
+      <h2>Precision Loss in Action</h2>
+      <div id="precisionTable"></div>
+    </div>
+
+    <!-- Live Converter -->
+    <div class="card converter">
+      <h2>Live Format Converter</h2>
+      <p style="font-size:.82rem;color:#a6adc8;margin-bottom:10px">Enter any number to see its representation:</p>
+      <input type="number" id="convInput" value="3.14159" step="any">
+      <div class="conv-result" id="convResult"></div>
+    </div>
+
+    <!-- When to Use What -->
+    <div class="card">
+      <h2>When to Use What?</h2>
+      <div id="useCards"></div>
+    </div>
+
+  </div>
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+// === Bit Layout ===
+const formats = [
+  {name:'FP32', exp:8, man:23, total:32, color:'#89b4fa'},
+  {name:'BF16', exp:8, man:7,  total:16, color:'#f9e2af'},
+  {name:'FP16', exp:5, man:10, total:16, color:'#a6e3a1'}
+];
+
+function renderBitLayouts(){
+  const el=document.getElementById('bitLayouts');
+  let html='';
+  formats.forEach(f=>{
+    html+=`<div class="bit-row"><div class="label" style="color:${f.color}">${f.name}</div><div class="bits">`;
+    html+=`<div class="bit sign">S</div>`;
+    for(let i=0;i<8;i++){
+      const isGhost = i >= f.exp;
+      html+=`<div class="bit exp${isGhost?' ghost':''}">${isGhost?'':'E'}</div>`;
+    }
+    for(let i=0;i<23;i++){
+      const isGhost = i >= f.man;
+      html+=`<div class="bit man${isGhost?' ghost':''}">${isGhost?'':'M'}</div>`;
+    }
+    html+=`</div><div style="font-size:.72rem;color:#a6adc8;margin-left:8px">${f.total} bits</div></div>`;
+  });
+  el.innerHTML=html;
+}
+renderBitLayouts();
+
+// === Animated Steps ===
+const exampleVal = -6.625;
+const steps = [
+  {
+    title:'1. Start with the decimal number',
+    body:`We'll encode <code>${exampleVal}</code> in IEEE 754.<br><br>
+    First, note the sign: the number is <b style="color:#f38ba8">negative</b>, so the sign bit = <code>1</code>.`
+  },
+  {
+    title:'2. Convert absolute value to binary',
+    body:`|${Math.abs(exampleVal)}| = 6.625<br><br>
+    Integer part: 6 = <code>110</code><br>
+    Fractional: 0.625 = 0.5 + 0.125 = <code>.101</code><br><br>
+    Binary: <code>110.101</code>`
+  },
+  {
+    title:'3. Normalize (scientific notation)',
+    body:`Shift to get 1.xxxxx &times; 2<sup>n</sup>:<br><br>
+    <code>110.101</code> = <code>1.10101</code> &times; 2<sup>2</sup><br><br>
+    The exponent is <b style="color:#89b4fa">2</b>, the mantissa is <b style="color:#a6e3a1">10101</b>.`
+  },
+  {
+    title:'4. Bias the exponent',
+    body:`Each format adds a bias to make the stored exponent unsigned:<br><br>
+    <b style="color:#89b4fa">FP32</b>: bias = 127 &rarr; stored = 2 + 127 = <code>129</code> = <code>10000001</code><br>
+    <b style="color:#a6e3a1">FP16</b>: bias = 15 &rarr; stored = 2 + 15 = <code>17</code> = <code>10001</code><br>
+    <b style="color:#f9e2af">BF16</b>: bias = 127 &rarr; stored = 2 + 127 = <code>129</code> = <code>10000001</code>`
+  },
+  {
+    title:'5. Pack the bits — FP32',
+    body:`<div class="conv-bits">
+    <div class="bit sign">1</div>
+    <div class="bit exp">1</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">1</div>
+    <div class="bit man">1</div><div class="bit man">0</div><div class="bit man">1</div><div class="bit man">0</div><div class="bit man">1</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div>
+    </div>
+    32 bits total. Mantissa: 23 bits &rarr; <b style="color:#a6e3a1">exact representation</b>, no rounding.`
+  },
+  {
+    title:'6. Pack the bits — FP16',
+    body:`<div class="conv-bits">
+    <div class="bit sign">1</div>
+    <div class="bit exp">1</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">1</div>
+    <div class="bit man">1</div><div class="bit man">0</div><div class="bit man">1</div><div class="bit man">0</div><div class="bit man">1</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div><div class="bit man">0</div>
+    </div>
+    16 bits. Mantissa has 10 bits &rarr; all 5 significant bits fit. <b style="color:#a6e3a1">Exact here too!</b><br>
+    But only 5 exponent bits: max value is just 65,504.`
+  },
+  {
+    title:'7. Pack the bits — BF16',
+    body:`<div class="conv-bits">
+    <div class="bit sign">1</div>
+    <div class="bit exp">1</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">0</div><div class="bit exp">1</div>
+    <div class="bit man">1</div><div class="bit man">0</div><div class="bit man">1</div><div class="bit man">0</div><div class="bit man">1</div><div class="bit man">0</div><div class="bit man">0</div>
+    </div>
+    16 bits. Same exponent as FP32 (8 bits) &rarr; same huge range.<br>
+    But only 7 mantissa bits. Here, 5 significant bits fit &rarr; <b style="color:#a6e3a1">still exact!</b><br>
+    For numbers needing more precision, BF16 rounds aggressively.`
+  },
+  {
+    title:'8. The tradeoff summary',
+    body:`<table class="precision-table" style="margin:0">
+    <tr><th>Format</th><th>Bits</th><th>Range</th><th>Decimal digits</th><th>Memory</th></tr>
+    <tr><td style="color:#89b4fa"><b>FP32</b></td><td>32</td><td>~3.4&times;10<sup>38</sup></td><td>~7.2</td><td>4 bytes</td></tr>
+    <tr><td style="color:#a6e3a1"><b>FP16</b></td><td>16</td><td>65,504</td><td>~3.3</td><td>2 bytes</td></tr>
+    <tr><td style="color:#f9e2af"><b>BF16</b></td><td>16</td><td>~3.4&times;10<sup>38</sup></td><td>~2.4</td><td>2 bytes</td></tr>
+    </table>
+    <div style="margin-top:10px;font-size:.82rem">
+    BF16 = <b>FP32's range</b> + <b>FP16's size</b>. The best of both worlds for training!
+    </div>`
+  }
+];
+
+let currentStep = -1;
+let autoInterval = null;
+const stepBox = document.getElementById('stepBox');
+const stepInd = document.getElementById('stepIndicator');
+const stepPrev = document.getElementById('stepPrev');
+const stepNext = document.getElementById('stepNext');
+const stepAuto = document.getElementById('stepAuto');
+const stepResetBtn = document.getElementById('stepReset');
+
+function renderStep(){
+  // Indicator dots
+  let dots='';
+  for(let i=0;i<steps.length;i++){
+    const cls = i<currentStep?'step-dot done':i===currentStep?'step-dot active':'step-dot';
+    dots+=`<div class="${cls}"></div>`;
+  }
+  stepInd.innerHTML=dots;
+
+  if(currentStep<0){
+    stepBox.innerHTML='<div style="text-align:center;color:#a6adc8;padding:20px">Click <b>Next</b> to see how <code>-6.625</code> is encoded step by step in FP32, FP16, and BF16.</div>';
+  } else {
+    const s=steps[currentStep];
+    stepBox.innerHTML=`<div class="step-title">${s.title}</div><div class="step-body">${s.body}</div>`;
+  }
+  stepPrev.disabled=currentStep<0;
+  stepNext.disabled=currentStep>=steps.length-1;
+}
+
+stepNext.addEventListener('click',()=>{if(currentStep<steps.length-1){currentStep++;renderStep();}});
+stepPrev.addEventListener('click',()=>{if(currentStep>=0){currentStep--;renderStep();}});
+stepResetBtn.addEventListener('click',()=>{stopAuto();currentStep=-1;renderStep();});
+
+function stopAuto(){
+  if(autoInterval){clearInterval(autoInterval);autoInterval=null;stepAuto.classList.remove('active');stepAuto.innerHTML='&#9654; Auto';}
+}
+stepAuto.addEventListener('click',()=>{
+  if(autoInterval){stopAuto();return;}
+  stepAuto.classList.add('active');
+  stepAuto.innerHTML='&#9724; Stop';
+  if(currentStep>=steps.length-1){currentStep=-1;renderStep();}
+  autoInterval=setInterval(()=>{
+    if(currentStep>=steps.length-1){stopAuto();return;}
+    currentStep++;renderStep();
+  },2500);
+});
+renderStep();
+
+// === Range Bars (animate on load) ===
+setTimeout(()=>{
+  document.getElementById('rangeFP32').style.width='100%';
+  document.getElementById('rangeBF16').style.width='99.5%';
+  // FP16 max = 65504, log scale relative to 3.4e38
+  const fp16Pct = (Math.log10(65504)/Math.log10(3.4e38))*100;
+  document.getElementById('rangeFP16').style.width=fp16Pct.toFixed(1)+'%';
+},300);
+
+// === Precision Table ===
+(function(){
+  const vals=[
+    {v:3.14159265, label:'pi'},
+    {v:0.000123456, label:'small'},
+    {v:100000.1, label:'large'},
+    {v:0.1, label:'0.1'},
+  ];
+  const table=document.getElementById('precisionTable');
+  let html='<table class="precision-table"><tr><th>Value</th><th>FP32</th><th>FP16</th><th>BF16</th></tr>';
+  vals.forEach(({v,label})=>{
+    const fp32=v.toPrecision(7);
+    const fp16=v>65504?'<span class="fail">Inf (overflow)</span>':v.toPrecision(4);
+    const bf16=v.toPrecision(3);
+    html+=`<tr>
+      <td class="val">${v}</td>
+      <td>${fp32}</td>
+      <td>${fp16}</td>
+      <td>${bf16}</td>
+    </tr>`;
+  });
+  html+='</table>';
+  html+='<div style="font-size:.75rem;color:#a6adc8;margin-top:8px">BF16 rounds most aggressively (fewer mantissa bits). FP16 keeps more digits but overflows sooner.</div>';
+  table.innerHTML=html;
+})();
+
+// === Live Converter ===
+const FP16_MAX=65504, FP16_MIN=6.1e-5;
+const BF16_MAX=3.39e38, BF16_MIN=1.17e-38;
+const FP32_MAX=3.4028235e38;
+
+function floatToBinaryStr(val, expBits, manBits, bias){
+  const sign = val < 0 ? 1 : 0;
+  const abs = Math.abs(val);
+  if(abs===0) return {sign:0, exp:'0'.repeat(expBits), man:'0'.repeat(manBits), decimal:0, status:'ok'};
+
+  const maxExp = (1<<expBits)-1;
+  let e = Math.floor(Math.log2(abs));
+  let biasedExp = e + bias;
+
+  if(biasedExp >= maxExp) return {sign, exp:'1'.repeat(expBits), man:'0'.repeat(manBits), decimal:Infinity, status:'overflow'};
+  if(biasedExp <= 0) return {sign, exp:'0'.repeat(expBits), man:'0'.repeat(manBits), decimal:0, status:'underflow'};
+
+  const frac = abs / Math.pow(2, e) - 1;
+  let manStr = '';
+  let rem = frac;
+  for(let i=0;i<manBits;i++){
+    rem *= 2;
+    if(rem >= 1){manStr+='1'; rem-=1;} else {manStr+='0';}
+  }
+
+  const expStr = biasedExp.toString(2).padStart(expBits,'0');
+  // Reconstruct
+  let manVal=0;
+  for(let i=0;i<manBits;i++) manVal += parseInt(manStr[i]) * Math.pow(2,-(i+1));
+  const reconstructed = Math.pow(-1,sign) * Math.pow(2,e) * (1+manVal);
+
+  return {sign, exp:expStr, man:manStr, decimal:reconstructed, status:'ok'};
+}
+
+function renderConverter(){
+  const v = parseFloat(document.getElementById('convInput').value);
+  const res = document.getElementById('convResult');
+  if(isNaN(v)){res.innerHTML='Enter a valid number.';return;}
+
+  const fmts = [
+    {name:'FP32', expBits:8, manBits:23, bias:127, color:'#89b4fa', max:FP32_MAX, min:1.18e-38},
+    {name:'FP16', expBits:5, manBits:10, bias:15, color:'#a6e3a1', max:FP16_MAX, min:FP16_MIN},
+    {name:'BF16', expBits:8, manBits:7,  bias:127, color:'#f9e2af', max:BF16_MAX, min:BF16_MIN}
+  ];
+
+  let html='';
+  fmts.forEach(f=>{
+    const r = floatToBinaryStr(v, f.expBits, f.manBits, f.bias);
+    html+=`<div style="margin-bottom:12px"><b style="color:${f.color}">${f.name}</b> `;
+    if(r.status==='overflow') html+=`<span class="fail">OVERFLOW &rarr; Inf</span>`;
+    else if(r.status==='underflow') html+=`<span class="warn">UNDERFLOW &rarr; 0.0</span>`;
+    else {
+      const err = Math.abs(v - r.decimal);
+      const errPct = v!==0 ? (err/Math.abs(v)*100).toFixed(6) : '0';
+      html+=`<span class="ok">&rarr; ${r.decimal.toPrecision(8)}</span>`;
+      if(err>0) html+=` <span style="color:#a6adc8;font-size:.75rem">(error: ${errPct}%)</span>`;
+    }
+    // Bit display
+    html+=`<div class="conv-bits">`;
+    html+=`<div class="bit sign">${r.sign}</div>`;
+    for(const c of r.exp) html+=`<div class="bit exp">${c}</div>`;
+    for(const c of r.man) html+=`<div class="bit man">${c}</div>`;
+    html+=`</div></div>`;
+  });
+  res.innerHTML=html;
+}
+document.getElementById('convInput').addEventListener('input',renderConverter);
+renderConverter();
+
+// === When to Use ===
+(function(){
+  const cards=[
+    {name:'FP32',color:'#89b4fa',emoji:'&#128170;',
+     use:'Master weights in mixed precision training, final model storage when precision matters.',
+     why:'Full ~7.2 decimal digits of precision. Gold standard, but 2&times; memory and slower compute.'},
+    {name:'FP16',color:'#a6e3a1',emoji:'&#9889;',
+     use:'Inference on GPUs with Tensor Cores (NVIDIA), ONNX export, mobile deployment.',
+     why:'2&times; faster matmuls, half memory. But limited range (max 65K) &mdash; needs loss scaling for training.'},
+    {name:'BF16',color:'#f9e2af',emoji:'&#129504;',
+     use:'Training (default on TPUs, A100+, H100). Drop-in FP32 replacement.',
+     why:'Same range as FP32 so no overflow issues. Less precision than FP16, but training is forgiving.'}
+  ];
+  const el=document.getElementById('useCards');
+  let html='';
+  cards.forEach(c=>{
+    html+=`<div class="fmt-card">
+      <div class="fmt-title" style="color:${c.color}">${c.emoji} ${c.name}</div>
+      <div style="font-size:.82rem;margin-bottom:4px"><b>Use for:</b> ${c.use}</div>
+      <div style="font-size:.78rem;color:#a6adc8"><b>Why:</b> ${c.why}</div>
+    </div>`;
+  });
+  el.innerHTML=html;
+})();
+</script>
+</body>
+</html>

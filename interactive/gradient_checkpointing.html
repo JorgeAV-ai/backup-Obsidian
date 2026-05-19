@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gradient Checkpointing: Trading Time for Memory</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;line-height:1.6;min-height:100vh;display:flex;flex-direction:column}
+.container{max-width:1200px;margin:0 auto;padding:20px;flex:1}
+h1{text-align:center;font-size:2rem;margin:30px 0 10px;background:linear-gradient(135deg,#a6e3a1,#94e2d5);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:30px;font-size:1.1rem}
+.section{background:#313244;border-radius:16px;padding:24px;margin-bottom:24px;border:1px solid #45475a}
+.section h2{color:#a6e3a1;margin-bottom:16px;font-size:1.3rem}
+.controls{display:flex;flex-wrap:wrap;gap:20px;align-items:center;margin-bottom:20px}
+.control-group{flex:1;min-width:220px}
+.control-group label{display:block;color:#a6adc8;font-size:.85rem;margin-bottom:6px;font-weight:600}
+input[type=range]{width:100%;-webkit-appearance:none;height:8px;border-radius:4px;background:#45475a;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#a6e3a1;cursor:pointer}
+.value-display{color:#a6e3a1;font-weight:700;font-size:.9rem}
+.btn{padding:10px 24px;background:#a6e3a1;color:#1e1e2e;border:none;border-radius:10px;cursor:pointer;font-size:.95rem;font-weight:700;transition:all .3s}
+.btn:hover{background:#94e2d5;transform:translateY(-1px)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.side-by-side{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+@media(max-width:800px){.side-by-side{grid-template-columns:1fr}}
+.panel{background:#1e1e2e;border-radius:12px;padding:20px;border:2px solid #45475a}
+.panel h3{text-align:center;margin-bottom:12px;font-size:1.1rem}
+.panel-standard h3{color:#89b4fa}
+.panel-checkpoint h3{color:#a6e3a1}
+.panel-standard{border-color:#89b4fa30}
+.panel-checkpoint{border-color:#a6e3a130}
+.layers-container{display:flex;flex-direction:column-reverse;gap:3px;margin:12px 0}
+.layer{height:18px;border-radius:4px;background:#45475a;position:relative;display:flex;align-items:center;padding:0 8px;font-size:.7rem;transition:all .3s ease;overflow:hidden}
+.layer .layer-label{position:relative;z-index:1;color:#1e1e2e;font-weight:700;opacity:0;transition:opacity .2s}
+.layer.stored{background:#a6e3a1}
+.layer.stored .layer-label{opacity:1}
+.layer.checkpoint{background:#a6e3a1;box-shadow:0 0 8px rgba(166,227,161,.4)}
+.layer.checkpoint .layer-label{opacity:1}
+.layer.recomputed{background:#f9e2af}
+.layer.recomputed .layer-label{opacity:1;color:#1e1e2e}
+.layer.gradient{background:#cba6f7}
+.layer.gradient .layer-label{opacity:1}
+.layer.inactive{background:#45475a}
+.layer .layer-num{position:absolute;right:6px;font-size:.65rem;color:rgba(0,0,0,.5);z-index:1}
+.memory-bar-container{margin:12px 0}
+.memory-bar-label{display:flex;justify-content:space-between;font-size:.8rem;color:#a6adc8;margin-bottom:4px}
+.memory-bar{height:20px;background:#45475a;border-radius:6px;overflow:hidden;position:relative}
+.memory-fill{height:100%;border-radius:6px;transition:width .5s ease;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#1e1e2e}
+.memory-fill-standard{background:linear-gradient(90deg,#89b4fa,#74c7ec)}
+.memory-fill-checkpoint{background:linear-gradient(90deg,#a6e3a1,#94e2d5)}
+.status-text{text-align:center;color:#a6adc8;font-size:.85rem;min-height:40px;display:flex;align-items:center;justify-content:center;padding:8px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin:16px 0}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:#a6adc8}
+.legend-dot{width:14px;height:14px;border-radius:3px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:16px}
+.stat-card{background:#1e1e2e;border-radius:12px;padding:16px;text-align:center}
+.stat-card .stat-label{color:#a6adc8;font-size:.85rem;margin-bottom:4px}
+.stat-card .stat-value{font-size:1.5rem;font-weight:800}
+.stat-green{color:#a6e3a1}
+.stat-blue{color:#89b4fa}
+.stat-yellow{color:#f9e2af}
+.stat-purple{color:#cba6f7}
+.chart-container{background:#1e1e2e;border-radius:12px;padding:20px;margin-top:16px}
+canvas{display:block;margin:0 auto}
+.analogy-box{background:rgba(249,226,175,.08);border:1px solid rgba(249,226,175,.2);border-radius:12px;padding:16px;margin-top:16px}
+.analogy-box .analogy-title{color:#f9e2af;font-weight:700;margin-bottom:8px}
+.analogy-box p{color:#a6adc8;font-size:.95rem}
+.real-numbers{background:rgba(137,180,250,.08);border:1px solid rgba(137,180,250,.2);border-radius:12px;padding:16px;margin-top:16px}
+.real-numbers h4{color:#89b4fa;margin-bottom:8px}
+.real-numbers p{color:#a6adc8;font-size:.9rem;margin-bottom:4px}
+.real-numbers strong{color:#cdd6f4}
+.phase-label{text-align:center;font-size:.85rem;font-weight:700;padding:6px;border-radius:6px;margin-bottom:8px}
+.phase-forward{background:rgba(166,227,161,.15);color:#a6e3a1}
+.phase-backward{background:rgba(203,166,247,.15);color:#cba6f7}
+.phase-idle{background:rgba(69,71,90,.5);color:#6c7086}
+footer{text-align:center;padding:20px;color:#6c7086;font-size:.85rem;border-top:1px solid #313244}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Gradient Checkpointing: Trading Time for Memory</h1>
+<p class="subtitle">How to train massive models by recomputing instead of storing activations</p>
+
+<div class="section">
+<h2>Controls</h2>
+<div class="controls">
+<div class="control-group">
+<label>Checkpoint every N layers: <span class="value-display" id="checkpointVal">6</span></label>
+<input type="range" id="checkpointSlider" min="1" max="24" value="6" oninput="updateCheckpoint(this.value)">
+<div style="display:flex;justify-content:space-between;font-size:.7rem;color:#6c7086;margin-top:2px">
+<span>1 (standard)</span><span>6</span><span>12</span><span>24 (minimal memory)</span>
+</div>
+</div>
+<div style="display:flex;gap:10px;align-items:flex-end">
+<button class="btn" id="animateBtn" onclick="startAnimation()">Animate Training</button>
+<button class="btn" style="background:#45475a;color:#cdd6f4" onclick="resetAnimation()">Reset</button>
+</div>
+</div>
+<div class="legend">
+<div class="legend-item"><div class="legend-dot" style="background:#a6e3a1"></div> Stored activation</div>
+<div class="legend-item"><div class="legend-dot" style="background:#f9e2af"></div> Recomputed activation</div>
+<div class="legend-item"><div class="legend-dot" style="background:#cba6f7"></div> Computing gradient</div>
+<div class="legend-item"><div class="legend-dot" style="background:#45475a"></div> Not in memory</div>
+</div>
+</div>
+
+<div class="section">
+<h2>Training a 24-Layer Model</h2>
+<div class="side-by-side">
+<div class="panel panel-standard">
+<h3 style="color:#89b4fa">Standard Training</h3>
+<div class="phase-label phase-idle" id="phaseStd">Ready</div>
+<div class="layers-container" id="layersStandard"></div>
+<div class="memory-bar-container">
+<div class="memory-bar-label"><span>Memory Used</span><span id="memStdLabel">0 / 24 GB</span></div>
+<div class="memory-bar"><div class="memory-fill memory-fill-standard" id="memStdFill" style="width:0%"></div></div>
+</div>
+<div class="status-text" id="statusStd">Click "Animate Training" to begin</div>
+</div>
+<div class="panel panel-checkpoint">
+<h3 style="color:#a6e3a1">Gradient Checkpointing</h3>
+<div class="phase-label phase-idle" id="phaseChk">Ready</div>
+<div class="layers-container" id="layersCheckpoint"></div>
+<div class="memory-bar-container">
+<div class="memory-bar-label"><span>Memory Used</span><span id="memChkLabel">0 / 24 GB</span></div>
+<div class="memory-bar"><div class="memory-fill memory-fill-checkpoint" id="memChkFill" style="width:0%"></div></div>
+</div>
+<div class="status-text" id="statusChk">Click "Animate Training" to begin</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h2>Trade-off Analysis</h2>
+<div class="stats-grid">
+<div class="stat-card">
+<div class="stat-label">Standard Memory</div>
+<div class="stat-value stat-blue" id="statStdMem">24 GB</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Checkpointed Memory</div>
+<div class="stat-value stat-green" id="statChkMem">4 GB</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Memory Saved</div>
+<div class="stat-value stat-yellow" id="statSaved">83%</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Recomputation Overhead</div>
+<div class="stat-value stat-purple" id="statRecomp">~30%</div>
+</div>
+</div>
+
+<div class="chart-container">
+<canvas id="tradeoffChart" width="700" height="300"></canvas>
+</div>
+
+<div class="real-numbers">
+<h4>Real-World Numbers</h4>
+<p><strong>GPT-3 (175B parameters):</strong></p>
+<p>Standard training: <strong style="color:#f38ba8">~350 GB activations</strong> — impossible on any single GPU!</p>
+<p>With checkpointing: <strong style="color:#a6e3a1">~35 GB activations</strong> — fits on 4x A100 (80GB each)</p>
+<p style="margin-top:8px"><strong>Memory reduction: 10x</strong> at the cost of ~33% more computation time</p>
+</div>
+
+<div class="analogy-box">
+<div class="analogy-title">Analogy: Climbing a Building</div>
+<p><strong>Standard:</strong> Taking a photo at every floor as you go up. When you need to go back down, you have all the photos — but your camera roll is huge!</p>
+<p style="margin-top:6px"><strong>Checkpointing:</strong> Taking photos only every 6 floors. When you need a photo from floor 8, you walk back up from floor 6 and retake it. Your camera roll stays small, but you walk a bit more.</p>
+</div>
+</div>
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const TOTAL_LAYERS = 24;
+let checkpointEvery = 6;
+let animating = false;
+let animationId = null;
+
+function createLayers() {
+  const stdContainer = document.getElementById('layersStandard');
+  const chkContainer = document.getElementById('layersCheckpoint');
+  stdContainer.innerHTML = '';
+  chkContainer.innerHTML = '';
+
+  for (let i = 0; i < TOTAL_LAYERS; i++) {
+    const stdLayer = document.createElement('div');
+    stdLayer.className = 'layer';
+    stdLayer.id = `std-layer-${i}`;
+    stdLayer.innerHTML = `<span class="layer-label"></span><span class="layer-num">${i}</span>`;
+    stdContainer.appendChild(stdLayer);
+
+    const chkLayer = document.createElement('div');
+    chkLayer.className = 'layer';
+    chkLayer.id = `chk-layer-${i}`;
+    chkLayer.innerHTML = `<span class="layer-label"></span><span class="layer-num">${i}</span>`;
+    chkContainer.appendChild(chkLayer);
+  }
+}
+
+function updateCheckpoint(val) {
+  checkpointEvery = parseInt(val);
+  document.getElementById('checkpointVal').textContent = val;
+  updateStats();
+  drawChart();
+  if (!animating) {
+    createLayers();
+    updateMemoryBars(0, 0);
+  }
+}
+
+function updateStats() {
+  const n = checkpointEvery;
+  const numCheckpoints = n === 1 ? TOTAL_LAYERS : Math.floor(TOTAL_LAYERS / n) + (TOTAL_LAYERS % n > 0 ? 1 : 0);
+  const chkMem = n === 1 ? TOTAL_LAYERS : numCheckpoints;
+  const saved = ((1 - chkMem / TOTAL_LAYERS) * 100);
+  const recomp = n === 1 ? 0 : Math.round(((n - 1) / n) * (TOTAL_LAYERS - numCheckpoints) / TOTAL_LAYERS * 100);
+
+  document.getElementById('statStdMem').textContent = `${TOTAL_LAYERS} GB`;
+  document.getElementById('statChkMem').textContent = `${chkMem} GB`;
+  document.getElementById('statSaved').textContent = `${Math.round(saved)}%`;
+  document.getElementById('statRecomp').textContent = `~${Math.max(0, Math.round((1 - 1/n) * 100))}%`;
+}
+
+function updateMemoryBars(stdMem, chkMem) {
+  const stdPct = (stdMem / TOTAL_LAYERS) * 100;
+  const chkPct = (chkMem / TOTAL_LAYERS) * 100;
+  document.getElementById('memStdFill').style.width = stdPct + '%';
+  document.getElementById('memChkFill').style.width = chkPct + '%';
+  document.getElementById('memStdLabel').textContent = `${stdMem} / ${TOTAL_LAYERS} GB`;
+  document.getElementById('memChkLabel').textContent = `${chkMem} / ${TOTAL_LAYERS} GB`;
+}
+
+function setLayerState(prefix, idx, state, label) {
+  const el = document.getElementById(`${prefix}-layer-${idx}`);
+  if (!el) return;
+  el.className = 'layer ' + state;
+  el.querySelector('.layer-label').textContent = label || '';
+}
+
+function setPhase(panel, phase, text) {
+  const el = document.getElementById(panel);
+  el.className = 'phase-label ' + phase;
+  el.textContent = text;
+}
+
+function isCheckpoint(idx) {
+  if (checkpointEvery === 1) return true;
+  return idx % checkpointEvery === 0;
+}
+
+async function startAnimation() {
+  if (animating) return;
+  animating = true;
+  document.getElementById('animateBtn').disabled = true;
+  createLayers();
+
+  const speed = 80;
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+
+  let stdMem = 0;
+  let chkMem = 0;
+
+  // === FORWARD PASS ===
+  setPhase('phaseStd', 'phase-forward', 'Forward Pass');
+  setPhase('phaseChk', 'phase-forward', 'Forward Pass');
+
+  for (let i = 0; i < TOTAL_LAYERS; i++) {
+    // Standard: store every activation
+    setLayerState('std', i, 'stored', 'stored');
+    stdMem++;
+
+    // Checkpoint: only store at checkpoint layers
+    if (isCheckpoint(i)) {
+      setLayerState('chk', i, 'checkpoint', 'checkpoint');
+      chkMem++;
+    } else {
+      // Pass through but don't store
+      setLayerState('chk', i, 'stored', 'passing...');
+      await wait(speed / 2);
+      setLayerState('chk', i, 'inactive', '');
+    }
+
+    updateMemoryBars(stdMem, chkMem);
+    document.getElementById('statusStd').textContent = `Forward: Layer ${i} — storing activation (${stdMem} stored)`;
+    document.getElementById('statusChk').textContent = isCheckpoint(i)
+      ? `Forward: Layer ${i} — CHECKPOINT saved (${chkMem} stored)`
+      : `Forward: Layer ${i} — activation discarded to save memory`;
+
+    await wait(speed);
+  }
+
+  await wait(500);
+
+  // === BACKWARD PASS ===
+  setPhase('phaseStd', 'phase-backward', 'Backward Pass');
+  setPhase('phaseChk', 'phase-backward', 'Backward Pass');
+
+  for (let i = TOTAL_LAYERS - 1; i >= 0; i--) {
+    // Standard: just use stored activation
+    setLayerState('std', i, 'gradient', 'gradient');
+    document.getElementById('statusStd').textContent = `Backward: Layer ${i} — using stored activation to compute gradient`;
+
+    // Checkpoint: need to recompute if not a checkpoint
+    if (isCheckpoint(i)) {
+      setLayerState('chk', i, 'gradient', 'gradient');
+      document.getElementById('statusChk').textContent = `Backward: Layer ${i} — checkpoint available, computing gradient`;
+    } else {
+      // Find previous checkpoint
+      const prevCheckpoint = Math.floor(i / checkpointEvery) * checkpointEvery;
+
+      // Recompute from previous checkpoint to current layer
+      document.getElementById('statusChk').textContent = `Backward: Layer ${i} — recomputing from checkpoint at layer ${prevCheckpoint}`;
+      for (let r = prevCheckpoint + 1; r <= i; r++) {
+        if (!isCheckpoint(r)) {
+          setLayerState('chk', r, 'recomputed', 'recompute');
+          await wait(speed / 3);
+        }
+      }
+      setLayerState('chk', i, 'gradient', 'gradient');
+
+      // Clear recomputed layers
+      await wait(speed / 2);
+      for (let r = prevCheckpoint + 1; r < i; r++) {
+        if (!isCheckpoint(r)) {
+          setLayerState('chk', r, 'inactive', '');
+        }
+      }
+    }
+
+    await wait(speed);
+
+    // Clear standard layer after gradient computed
+    if (i > 0) {
+      setLayerState('std', i, 'inactive', '');
+      stdMem--;
+      updateMemoryBars(stdMem, chkMem);
+    }
+  }
+
+  setPhase('phaseStd', 'phase-idle', 'Complete!');
+  setPhase('phaseChk', 'phase-idle', 'Complete!');
+  document.getElementById('statusStd').textContent = 'Training step complete. All activations used.';
+  document.getElementById('statusChk').textContent = `Training step complete. Only ${chkMem} checkpoints were stored!`;
+
+  animating = false;
+  document.getElementById('animateBtn').disabled = false;
+}
+
+function resetAnimation() {
+  animating = false;
+  document.getElementById('animateBtn').disabled = false;
+  createLayers();
+  updateMemoryBars(0, 0);
+  setPhase('phaseStd', 'phase-idle', 'Ready');
+  setPhase('phaseChk', 'phase-idle', 'Ready');
+  document.getElementById('statusStd').textContent = 'Click "Animate Training" to begin';
+  document.getElementById('statusChk').textContent = 'Click "Animate Training" to begin';
+}
+
+function drawChart() {
+  const canvas = document.getElementById('tradeoffChart');
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.min(700, window.innerWidth - 100);
+  const h = 300;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = { top: 30, right: 40, bottom: 50, left: 60 };
+  const cw = w - pad.left - pad.right;
+  const ch = h - pad.top - pad.bottom;
+
+  // Data points: checkpoint_every -> (memory, recomputation%)
+  const data = [];
+  for (let n = 1; n <= 24; n++) {
+    const numCk = n === 1 ? 24 : Math.floor(24 / n) + (24 % n > 0 ? 1 : 0);
+    const mem = numCk;
+    const recomp = n === 1 ? 0 : Math.round((1 - 1 / n) * 100);
+    data.push({ n, mem, recomp });
+  }
+
+  // Axes
+  ctx.strokeStyle = '#45475a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad.left, pad.top);
+  ctx.lineTo(pad.left, h - pad.bottom);
+  ctx.lineTo(w - pad.right, h - pad.bottom);
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#a6adc8';
+  ctx.font = '12px Segoe UI, system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('Checkpoint Every N Layers', w / 2, h - 8);
+
+  ctx.save();
+  ctx.translate(14, h / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Value', 0, 0);
+  ctx.restore();
+
+  // Grid
+  ctx.strokeStyle = '#45475a30';
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (ch / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
+    ctx.stroke();
+  }
+
+  // X axis ticks
+  const xTicks = [1, 2, 4, 6, 8, 12, 24];
+  ctx.fillStyle = '#a6adc8';
+  ctx.font = '11px Segoe UI, system-ui';
+  ctx.textAlign = 'center';
+  for (const t of xTicks) {
+    const x = pad.left + ((t - 1) / 23) * cw;
+    ctx.fillText(t, x, h - pad.bottom + 18);
+  }
+
+  // Y axis ticks
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = Math.round((24 / 4) * (4 - i));
+    const y = pad.top + (ch / 4) * i;
+    ctx.fillText(val, pad.left - 8, y + 4);
+  }
+
+  // Memory line (blue)
+  ctx.beginPath();
+  ctx.strokeStyle = '#89b4fa';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < data.length; i++) {
+    const x = pad.left + (i / 23) * cw;
+    const y = pad.top + ch - (data[i].mem / 24) * ch;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Recomputation line (yellow)
+  ctx.beginPath();
+  ctx.strokeStyle = '#f9e2af';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < data.length; i++) {
+    const x = pad.left + (i / 23) * cw;
+    const y = pad.top + ch - (data[i].recomp / 100) * ch;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Current checkpoint marker
+  const cx = pad.left + ((checkpointEvery - 1) / 23) * cw;
+  ctx.strokeStyle = '#a6e3a180';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(cx, pad.top);
+  ctx.lineTo(cx, h - pad.bottom);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Current marker dot - memory
+  const curData = data[checkpointEvery - 1];
+  const myMem = pad.top + ch - (curData.mem / 24) * ch;
+  ctx.beginPath();
+  ctx.arc(cx, myMem, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#89b4fa';
+  ctx.fill();
+
+  // Current marker dot - recomp
+  const myRecomp = pad.top + ch - (curData.recomp / 100) * ch;
+  ctx.beginPath();
+  ctx.arc(cx, myRecomp, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#f9e2af';
+  ctx.fill();
+
+  // Legend
+  ctx.font = 'bold 12px Segoe UI, system-ui';
+  const lx = w - pad.right - 160;
+  ctx.fillStyle = '#89b4fa';
+  ctx.fillRect(lx, pad.top + 5, 16, 3);
+  ctx.fillText('Memory (GB)', lx + 22, pad.top + 10);
+  ctx.fillStyle = '#f9e2af';
+  ctx.fillRect(lx, pad.top + 22, 16, 3);
+  ctx.fillText('Recomputation %', lx + 22, pad.top + 27);
+
+  // Title
+  ctx.fillStyle = '#cdd6f4';
+  ctx.font = 'bold 14px Segoe UI, system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('Memory vs Recomputation Trade-off', w / 2, 18);
+}
+
+// Init
+createLayers();
+updateStats();
+drawChart();
+window.addEventListener('resize', drawChart);
+</script>
+</body>
+</html>

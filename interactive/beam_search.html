@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beam Search: Exploring Multiple Paths</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;line-height:1.6;min-height:100vh;display:flex;flex-direction:column}
+.container{max-width:1200px;margin:0 auto;padding:20px;flex:1}
+h1{text-align:center;font-size:2rem;margin:30px 0 10px;background:linear-gradient(135deg,#f9e2af,#fab387);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:30px;font-size:1.1rem}
+.section{background:#313244;border-radius:16px;padding:24px;margin-bottom:24px;border:1px solid #45475a}
+.section h2{color:#f9e2af;margin-bottom:16px;font-size:1.3rem}
+.controls{display:flex;flex-wrap:wrap;gap:20px;align-items:center;margin-bottom:20px}
+.control-group{flex:1;min-width:200px}
+.control-group label{display:block;color:#a6adc8;font-size:.85rem;margin-bottom:6px;font-weight:600}
+.control-group select,.control-group input[type=range]{width:100%;padding:8px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:8px;font-size:.95rem}
+input[type=range]{-webkit-appearance:none;height:8px;border-radius:4px;background:#45475a;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#f9e2af;cursor:pointer}
+.value-display{text-align:right;color:#f9e2af;font-weight:700;font-size:.9rem}
+.prompt-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.prompt-tab{padding:8px 16px;background:#45475a;border:none;color:#cdd6f4;border-radius:20px;cursor:pointer;font-size:.85rem;transition:all .3s}
+.prompt-tab:hover{background:#585b70}
+.prompt-tab.active{background:#f9e2af;color:#1e1e2e;font-weight:600}
+.tree-container{overflow-x:auto;padding:20px 0}
+canvas{display:block;margin:0 auto}
+.results-panel{background:#1e1e2e;border-radius:12px;padding:20px;margin-top:20px}
+.results-panel h3{color:#f9e2af;margin-bottom:12px}
+.result-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:8px;margin-bottom:8px;background:#313244}
+.result-row .result-label{font-weight:700;font-size:.9rem}
+.result-row .result-text{color:#a6adc8;flex:1;margin:0 16px;font-style:italic}
+.result-row .result-score{font-weight:800;font-size:1.1rem}
+.result-greedy{border-left:3px solid #f38ba8}
+.result-beam{border-left:3px solid #a6e3a1}
+.result-beam4{border-left:3px solid #89b4fa}
+.mode-btns{display:flex;gap:8px;flex-wrap:wrap}
+.mode-btn{padding:8px 18px;background:#45475a;border:2px solid transparent;color:#cdd6f4;border-radius:10px;cursor:pointer;font-size:.9rem;transition:all .3s}
+.mode-btn:hover{border-color:#585b70}
+.mode-btn.active{border-color:#f9e2af;background:rgba(249,226,175,.1);color:#f9e2af;font-weight:600}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:.85rem;color:#a6adc8}
+.legend-dot{width:14px;height:14px;border-radius:50%}
+footer{text-align:center;padding:20px;color:#6c7086;font-size:.85rem;border-top:1px solid #313244}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Beam Search: Exploring Multiple Paths</h1>
+<p class="subtitle">How language models explore many possible completions to find the best one</p>
+
+<div class="section">
+<h2>Choose a Prompt</h2>
+<div class="prompt-tabs" id="promptTabs"></div>
+<div style="background:#1e1e2e;border-radius:12px;padding:14px;border-left:4px solid #f9e2af;margin-bottom:16px">
+<span style="color:#f9e2af;font-weight:700">Prompt:</span> <span id="currentPrompt" style="font-size:1.1rem"></span>
+</div>
+</div>
+
+<div class="section">
+<h2>Controls</h2>
+<div class="controls">
+<div class="control-group">
+<label>Mode</label>
+<div class="mode-btns">
+<button class="mode-btn active" onclick="setMode(1)">Greedy (beam=1)</button>
+<button class="mode-btn" onclick="setMode(2)">Beam=2</button>
+<button class="mode-btn" onclick="setMode(4)">Beam=4</button>
+</div>
+</div>
+</div>
+<div class="controls">
+<div class="control-group">
+<label>Beam Width: <span id="beamVal">1</span></label>
+<input type="range" id="beamSlider" min="1" max="5" value="1" oninput="setBeamFromSlider(this.value)">
+</div>
+<div class="control-group">
+<label>Temperature: <span id="tempVal">0.7</span></label>
+<input type="range" id="tempSlider" min="1" max="20" value="7" oninput="setTemp(this.value)">
+</div>
+<div class="control-group">
+<label>Length Penalty: <span id="lpVal">0.0</span></label>
+<input type="range" id="lpSlider" min="0" max="20" value="0" oninput="setLP(this.value)">
+</div>
+</div>
+<div class="legend">
+<div class="legend-item"><div class="legend-dot" style="background:#a6e3a1"></div> Active path</div>
+<div class="legend-item"><div class="legend-dot" style="background:#f9e2af"></div> Exploring</div>
+<div class="legend-item"><div class="legend-dot" style="background:#585b70"></div> Pruned</div>
+</div>
+</div>
+
+<div class="section">
+<h2>Search Tree</h2>
+<div class="tree-container">
+<canvas id="treeCanvas" width="1100" height="520"></canvas>
+</div>
+</div>
+
+<div class="section">
+<h2>Results</h2>
+<div class="results-panel" id="resultsPanel"></div>
+</div>
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const prompts = {
+  "The best way to learn is": {
+    levels: [
+      [
+        {word:"to", prob:.90, children:[
+          {word:"practice", prob:.50, children:[
+            {word:"every", prob:.55, children:[{word:"day", prob:.80, children:[]},{word:"skill", prob:.20, children:[]}]},
+            {word:"with", prob:.30, children:[{word:"others", prob:.70, children:[]},{word:"patience", prob:.30, children:[]}]},
+            {word:"often", prob:.15, children:[{word:"and", prob:1, children:[]}]}
+          ]},
+          {word:"read", prob:.30, children:[
+            {word:"books", prob:.60, children:[{word:"daily", prob:.70, children:[]},{word:"widely", prob:.30, children:[]}]},
+            {word:"and", prob:.25, children:[{word:"write", prob:.80, children:[]},{word:"reflect", prob:.20, children:[]}]},
+            {word:"carefully", prob:.15, children:[{word:"and", prob:1, children:[]}]}
+          ]},
+          {word:"study", prob:.15, children:[
+            {word:"hard", prob:.50, children:[{word:"daily",prob:1,children:[]}]},
+            {word:"with", prob:.35, children:[{word:"focus",prob:1,children:[]}]},
+            {word:"alone", prob:.15, children:[{word:"sometimes",prob:1,children:[]}]}
+          ]},
+          {word:"teach", prob:.05, children:[
+            {word:"others", prob:.80, children:[{word:"first",prob:1,children:[]}]},
+            {word:"yourself", prob:.20, children:[{word:"patience",prob:1,children:[]}]}
+          ]}
+        ]},
+        {word:"by", prob:.08, children:[
+          {word:"doing", prob:.60, children:[
+            {word:"things", prob:.50, children:[{word:"yourself",prob:.70,children:[]},{word:"daily",prob:.30,children:[]}]},
+            {word:"it", prob:.35, children:[{word:"yourself",prob:1,children:[]}]},
+            {word:"more", prob:.15, children:[{word:"practice",prob:1,children:[]}]}
+          ]},
+          {word:"reading", prob:.25, children:[
+            {word:"widely", prob:.60, children:[{word:"and",prob:1,children:[]}]},
+            {word:"books", prob:.40, children:[{word:"often",prob:1,children:[]}]}
+          ]},
+          {word:"making", prob:.15, children:[
+            {word:"mistakes",prob:.80,children:[{word:"first",prob:1,children:[]}]},
+            {word:"things",prob:.20,children:[{word:"work",prob:1,children:[]}]}
+          ]}
+        ]},
+        {word:"through", prob:.02, children:[
+          {word:"experience",prob:.70,children:[
+            {word:"and",prob:.60,children:[{word:"practice",prob:1,children:[]}]},
+            {word:"gained",prob:.40,children:[{word:"over",prob:1,children:[]}]}
+          ]},
+          {word:"practice",prob:.30,children:[
+            {word:"and",prob:.70,children:[{word:"repetition",prob:1,children:[]}]},
+            {word:"alone",prob:.30,children:[{word:"daily",prob:1,children:[]}]}
+          ]}
+        ]}
+      ]
+    ]
+  },
+  "Once upon a time there": {
+    levels: [
+      [
+        {word:"was", prob:.85, children:[
+          {word:"a", prob:.70, children:[
+            {word:"king", prob:.30, children:[{word:"who",prob:.80,children:[]},{word:"named",prob:.20,children:[]}]},
+            {word:"girl", prob:.25, children:[{word:"who",prob:.70,children:[]},{word:"named",prob:.30,children:[]}]},
+            {word:"dragon", prob:.25, children:[{word:"who",prob:.60,children:[]},{word:"that",prob:.40,children:[]}]},
+            {word:"wizard", prob:.20, children:[{word:"who",prob:.80,children:[]},{word:"named",prob:.20,children:[]}]}
+          ]},
+          {word:"an", prob:.15, children:[
+            {word:"old", prob:.50, children:[{word:"man",prob:.60,children:[]},{word:"woman",prob:.40,children:[]}]},
+            {word:"enchanted", prob:.30, children:[{word:"forest",prob:.70,children:[]},{word:"castle",prob:.30,children:[]}]},
+            {word:"ancient", prob:.20, children:[{word:"kingdom",prob:.60,children:[]},{word:"dragon",prob:.40,children:[]}]}
+          ]},
+          {word:"nothing", prob:.08, children:[
+            {word:"but", prob:.80, children:[{word:"darkness",prob:.60,children:[]},{word:"silence",prob:.40,children:[]}]},
+            {word:"at", prob:.20, children:[{word:"all",prob:1,children:[]}]}
+          ]},
+          {word:"no", prob:.07, children:[
+            {word:"one", prob:.90, children:[{word:"left",prob:1,children:[]}]},
+            {word:"hope", prob:.10, children:[{word:"remaining",prob:1,children:[]}]}
+          ]}
+        ]},
+        {word:"lived", prob:.12, children:[
+          {word:"a", prob:.80, children:[
+            {word:"brave", prob:.40, children:[{word:"knight",prob:.70,children:[]},{word:"girl",prob:.30,children:[]}]},
+            {word:"young", prob:.35, children:[{word:"prince",prob:.50,children:[]},{word:"girl",prob:.50,children:[]}]},
+            {word:"wise", prob:.25, children:[{word:"old",prob:.80,children:[]},{word:"queen",prob:.20,children:[]}]}
+          ]},
+          {word:"three", prob:.12, children:[
+            {word:"sisters",prob:.50,children:[{word:"who",prob:1,children:[]}]},
+            {word:"brothers",prob:.30,children:[{word:"who",prob:1,children:[]}]},
+            {word:"friends",prob:.20,children:[{word:"who",prob:1,children:[]}]}
+          ]},
+          {word:"an", prob:.08, children:[
+            {word:"old",prob:.70,children:[{word:"wizard",prob:1,children:[]}]},
+            {word:"ancient",prob:.30,children:[{word:"dragon",prob:1,children:[]}]}
+          ]}
+        ]},
+        {word:"existed", prob:.03, children:[
+          {word:"a",prob:.80,children:[
+            {word:"world",prob:.60,children:[{word:"unlike",prob:1,children:[]}]},
+            {word:"place",prob:.40,children:[{word:"where",prob:1,children:[]}]}
+          ]},
+          {word:"an",prob:.20,children:[
+            {word:"ancient",prob:1,children:[{word:"realm",prob:1,children:[]}]}
+          ]}
+        ]}
+      ]
+    ]
+  },
+  "To make perfect pasta": {
+    levels: [
+      [
+        {word:"you", prob:.65, children:[
+          {word:"need", prob:.50, children:[
+            {word:"to", prob:.60, children:[{word:"boil",prob:.50,children:[]},{word:"start",prob:.30,children:[]},{word:"use",prob:.20,children:[]}]},
+            {word:"a", prob:.25, children:[{word:"large",prob:.60,children:[]},{word:"good",prob:.40,children:[]}]},
+            {word:"salt", prob:.15, children:[{word:"and",prob:1,children:[]}]}
+          ]},
+          {word:"must", prob:.25, children:[
+            {word:"start", prob:.50, children:[{word:"with",prob:.80,children:[]},{word:"by",prob:.20,children:[]}]},
+            {word:"use", prob:.30, children:[{word:"quality",prob:.60,children:[]},{word:"enough",prob:.40,children:[]}]},
+            {word:"boil", prob:.20, children:[{word:"water",prob:1,children:[]}]}
+          ]},
+          {word:"should", prob:.15, children:[
+            {word:"always", prob:.50, children:[{word:"salt",prob:.60,children:[]},{word:"use",prob:.40,children:[]}]},
+            {word:"start", prob:.30, children:[{word:"with",prob:1,children:[]}]},
+            {word:"never", prob:.20, children:[{word:"rinse",prob:1,children:[]}]}
+          ]},
+          {word:"have", prob:.10, children:[
+            {word:"to",prob:.70,children:[{word:"start",prob:1,children:[]}]},
+            {word:"got",prob:.30,children:[{word:"to",prob:1,children:[]}]}
+          ]}
+        ]},
+        {word:"start", prob:.20, children:[
+          {word:"with", prob:.70, children:[
+            {word:"quality", prob:.40, children:[{word:"ingredients",prob:.70,children:[]},{word:"flour",prob:.30,children:[]}]},
+            {word:"a", prob:.35, children:[{word:"large",prob:.60,children:[]},{word:"rolling",prob:.40,children:[]}]},
+            {word:"boiling", prob:.25, children:[{word:"salted",prob:.80,children:[]},{word:"water",prob:.20,children:[]}]}
+          ]},
+          {word:"by", prob:.20, children:[
+            {word:"boiling", prob:.60, children:[{word:"water",prob:1,children:[]}]},
+            {word:"choosing", prob:.40, children:[{word:"fresh",prob:1,children:[]}]}
+          ]},
+          {word:"from", prob:.10, children:[
+            {word:"scratch",prob:.80,children:[{word:"using",prob:1,children:[]}]},
+            {word:"the",prob:.20,children:[{word:"basics",prob:1,children:[]}]}
+          ]}
+        ]},
+        {word:"first", prob:.15, children:[
+          {word:"boil",prob:.50,children:[
+            {word:"a",prob:.50,children:[{word:"large",prob:1,children:[]}]},
+            {word:"water",prob:.30,children:[{word:"in",prob:1,children:[]}]},
+            {word:"salted",prob:.20,children:[{word:"water",prob:1,children:[]}]}
+          ]},
+          {word:"choose",prob:.30,children:[
+            {word:"the",prob:.60,children:[{word:"right",prob:1,children:[]}]},
+            {word:"quality",prob:.40,children:[{word:"ingredients",prob:1,children:[]}]}
+          ]},
+          {word:"use",prob:.20,children:[
+            {word:"quality",prob:1,children:[{word:"flour",prob:1,children:[]}]}
+          ]}
+        ]}
+      ]
+    ]
+  }
+};
+
+let currentPromptKey = Object.keys(prompts)[0];
+let beamWidth = 1;
+let temperature = 0.7;
+let lengthPenalty = 0.0;
+
+const canvas = document.getElementById('treeCanvas');
+const ctx = canvas.getContext('2d');
+
+function initPromptTabs() {
+  const container = document.getElementById('promptTabs');
+  container.innerHTML = Object.keys(prompts).map((k, i) =>
+    `<button class="prompt-tab ${i===0?'active':''}" onclick="selectPrompt('${k}', this)">"${k}"</button>`
+  ).join('');
+  document.getElementById('currentPrompt').textContent = currentPromptKey + '...';
+}
+
+function selectPrompt(key, el) {
+  currentPromptKey = key;
+  document.querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('currentPrompt').textContent = key + '...';
+  render();
+}
+
+function setMode(b) {
+  beamWidth = b;
+  document.getElementById('beamSlider').value = b;
+  document.getElementById('beamVal').textContent = b;
+  document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    if ((b===1 && btn.textContent.includes('Greedy')) ||
+        (b===2 && btn.textContent.includes('Beam=2')) ||
+        (b===4 && btn.textContent.includes('Beam=4'))) btn.classList.add('active');
+  });
+  render();
+}
+
+function setBeamFromSlider(v) {
+  beamWidth = parseInt(v);
+  document.getElementById('beamVal').textContent = v;
+  document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    if ((beamWidth===1 && btn.textContent.includes('Greedy')) ||
+        (beamWidth===2 && btn.textContent.includes('Beam=2')) ||
+        (beamWidth===4 && btn.textContent.includes('Beam=4'))) btn.classList.add('active');
+  });
+  render();
+}
+
+function setTemp(v) {
+  temperature = v / 10;
+  document.getElementById('tempVal').textContent = temperature.toFixed(1);
+  render();
+}
+
+function setLP(v) {
+  lengthPenalty = v / 10;
+  document.getElementById('lpVal').textContent = lengthPenalty.toFixed(1);
+  render();
+}
+
+function applyTemperature(nodes) {
+  // Temperature reshapes probability distribution
+  const logits = nodes.map(n => Math.log(n.prob + 1e-10) / temperature);
+  const maxL = Math.max(...logits);
+  const exps = logits.map(l => Math.exp(l - maxL));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return nodes.map((n, i) => ({ ...n, adjProb: exps[i] / sum }));
+}
+
+function collectPaths(tree, beamW) {
+  // BFS beam search
+  let beams = tree.map(n => ({
+    path: [n.word],
+    score: Math.log(n.adjProb || n.prob),
+    node: n,
+    active: true
+  }));
+
+  // Sort and keep top beamW
+  beams.sort((a, b) => b.score - a.score);
+  beams = beams.map((b, i) => ({ ...b, active: i < beamW }));
+
+  const allLevels = [beams.map(b => ({ ...b }))];
+
+  for (let depth = 0; depth < 3; depth++) {
+    let candidates = [];
+    for (const beam of beams) {
+      if (!beam.active || !beam.node.children || beam.node.children.length === 0) {
+        candidates.push({ ...beam, expanded: false });
+        continue;
+      }
+      const children = applyTemperature(beam.node.children);
+      for (const child of children) {
+        const lp = lengthPenalty > 0 ? Math.pow(beam.path.length + 1, lengthPenalty) : 1;
+        candidates.push({
+          path: [...beam.path, child.word],
+          score: (beam.score + Math.log(child.adjProb || child.prob)) / lp,
+          rawScore: beam.score + Math.log(child.adjProb || child.prob),
+          node: child,
+          active: true,
+          parent: beam.path.join(' ')
+        });
+      }
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    candidates = candidates.map((c, i) => ({ ...c, active: i < beamW }));
+    beams = candidates.filter(c => c.path.length > allLevels[0][0].path.length || !c.expanded);
+    allLevels.push(candidates.map(c => ({ ...c })));
+  }
+
+  return allLevels;
+}
+
+function render() {
+  const tree = prompts[currentPromptKey].levels[0];
+  const tempTree = applyTemperature(tree);
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.min(1100, window.innerWidth - 60);
+  const h = 520;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  // Draw the tree
+  const levels = [];
+  // Level 0: root tokens
+  const lvl0 = tempTree.map(n => ({
+    word: n.word,
+    prob: n.adjProb || n.prob,
+    origProb: n.prob,
+    node: n
+  })).sort((a, b) => b.prob - a.prob);
+  levels.push(lvl0);
+
+  // Build deeper levels
+  function buildLevel(parentNodes, depth) {
+    if (depth > 3) return;
+    const lvl = [];
+    for (const pn of parentNodes) {
+      if (!pn.node.children || pn.node.children.length === 0) continue;
+      const children = applyTemperature(pn.node.children);
+      for (const c of children) {
+        lvl.push({
+          word: c.word,
+          prob: c.adjProb || c.prob,
+          origProb: c.prob,
+          node: c,
+          parentWord: pn.word,
+          parentIdx: parentNodes.indexOf(pn),
+          parentPath: (pn.parentPath || '') + pn.word + ' '
+        });
+      }
+    }
+    if (lvl.length > 0) {
+      levels.push(lvl);
+      // Recurse for children grouped by parent
+      const grouped = {};
+      for (const item of lvl) {
+        const key = (item.parentPath || '') + item.word;
+        grouped[key] = item;
+      }
+      buildLevel(lvl, depth + 1);
+    }
+  }
+  buildLevel(lvl0, 1);
+
+  // Determine active paths via beam search
+  const beamPaths = collectPaths(tempTree, beamWidth);
+
+  // Get active path strings
+  const activePaths = new Set();
+  const lastLevel = beamPaths[beamPaths.length - 1];
+  if (lastLevel) {
+    for (const b of lastLevel) {
+      if (b.active) {
+        // Add all prefixes
+        for (let i = 1; i <= b.path.length; i++) {
+          activePaths.add(b.path.slice(0, i).join(' '));
+        }
+      }
+    }
+  }
+
+  // Layout: columns for each depth level
+  const colWidth = w / (Math.min(levels.length, 5) + 1);
+  const startX = 80;
+
+  // Position nodes
+  const positions = [];
+  for (let li = 0; li < Math.min(levels.length, 5); li++) {
+    const lvl = levels[li];
+    const x = startX + li * colWidth;
+    const nodeH = h / (lvl.length + 1);
+    const posLvl = [];
+    for (let ni = 0; ni < lvl.length; ni++) {
+      const y = nodeH * (ni + 1);
+      const path = (lvl[ni].parentPath || '') + lvl[ni].word;
+      const isActive = activePaths.has(path);
+      posLvl.push({ x, y, ...lvl[ni], path, isActive });
+    }
+    positions.push(posLvl);
+  }
+
+  // Draw edges
+  for (let li = 1; li < positions.length; li++) {
+    for (const node of positions[li]) {
+      // Find parent
+      const parentPath = node.parentPath ? node.parentPath.trim() : '';
+      const parentLvl = positions[li - 1];
+      const parent = parentLvl.find(p => {
+        const pPath = (p.parentPath || '') + p.word;
+        return pPath === parentPath;
+      });
+      if (parent) {
+        ctx.beginPath();
+        ctx.moveTo(parent.x + 40, parent.y);
+        ctx.bezierCurveTo(parent.x + 40 + colWidth * 0.4, parent.y, node.x - 40 - colWidth * 0.1, node.y, node.x - 40, node.y);
+        if (node.isActive) {
+          ctx.strokeStyle = '#a6e3a1';
+          ctx.lineWidth = 2.5;
+          ctx.globalAlpha = 1;
+        } else {
+          ctx.strokeStyle = '#585b70';
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = 0.4;
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  // Draw nodes
+  for (let li = 0; li < positions.length; li++) {
+    for (const node of positions[li]) {
+      const isActive = node.isActive;
+      const radius = 6;
+
+      // Node circle
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? '#a6e3a1' : '#585b70';
+      ctx.globalAlpha = isActive ? 1 : 0.4;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Label
+      ctx.font = isActive ? 'bold 13px Segoe UI, system-ui' : '12px Segoe UI, system-ui';
+      ctx.fillStyle = isActive ? '#cdd6f4' : '#6c7086';
+      ctx.globalAlpha = isActive ? 1 : 0.5;
+      ctx.textAlign = 'left';
+      ctx.fillText(node.word, node.x + 12, node.y - 4);
+
+      // Probability
+      ctx.font = '10px Segoe UI, system-ui';
+      ctx.fillStyle = isActive ? '#f9e2af' : '#6c7086';
+      ctx.fillText((node.prob * 100).toFixed(0) + '%', node.x + 12, node.y + 12);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Prompt label
+  ctx.font = 'bold 13px Segoe UI, system-ui';
+  ctx.fillStyle = '#f9e2af';
+  ctx.textAlign = 'right';
+  ctx.fillText('..."' + currentPromptKey.split(' ').slice(-2).join(' ') + '"', startX - 15, h / 2);
+
+  // Results
+  renderResults(beamPaths);
+}
+
+function renderResults(beamPaths) {
+  const panel = document.getElementById('resultsPanel');
+  const lastLevel = beamPaths[beamPaths.length - 1];
+  if (!lastLevel) return;
+
+  const sorted = [...lastLevel].sort((a, b) => b.score - a.score);
+  const top = sorted.slice(0, Math.min(5, sorted.length));
+
+  // Also get greedy path
+  const greedy = sorted.find(b => {
+    // Check if it's the path that always chose the highest prob
+    return true;
+  });
+
+  let html = '';
+  top.forEach((b, i) => {
+    const cls = i === 0 ? 'result-beam' : (b.active ? 'result-beam4' : 'result-greedy');
+    const label = i === 0 ? (beamWidth === 1 ? 'Greedy' : `Best (beam=${beamWidth})`) : `#${i + 1}`;
+    const fullText = currentPromptKey + ' ' + b.path.join(' ');
+    html += `<div class="result-row ${cls}">
+      <span class="result-label" style="min-width:80px">${label}</span>
+      <span class="result-text">"${fullText}"</span>
+      <span class="result-score" style="color:${b.active ? '#a6e3a1' : '#6c7086'}">${b.score.toFixed(3)}</span>
+    </div>`;
+  });
+
+  panel.innerHTML = `<h3>Top Completions ${beamWidth === 1 ? '(Greedy - always picks highest probability)' : `(Beam width = ${beamWidth})`}</h3>` + html;
+}
+
+initPromptTabs();
+render();
+window.addEventListener('resize', render);
+</script>
+</body>
+</html>

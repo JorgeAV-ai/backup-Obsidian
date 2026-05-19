@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RLHF: Teaching AI Right from Wrong</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;line-height:1.6;min-height:100vh;display:flex;flex-direction:column}
+.container{max-width:1100px;margin:0 auto;padding:20px;flex:1}
+h1{text-align:center;font-size:2rem;margin:30px 0 10px;background:linear-gradient(135deg,#cba6f7,#89b4fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:30px;font-size:1.1rem}
+.section{background:#313244;border-radius:16px;padding:24px;margin-bottom:24px;border:1px solid #45475a}
+.section h2{color:#cba6f7;margin-bottom:16px;font-size:1.3rem}
+.question-box{background:#1e1e2e;border-radius:12px;padding:16px;margin-bottom:20px;border-left:4px solid #89b4fa}
+.question-box .label{color:#89b4fa;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.responses{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:700px){.responses{grid-template-columns:1fr}}
+.response-card{background:#1e1e2e;border-radius:12px;padding:18px;cursor:pointer;border:2px solid #45475a;transition:all .3s ease;position:relative}
+.response-card:hover{border-color:#cba6f7;transform:translateY(-2px);box-shadow:0 4px 20px rgba(203,166,247,.15)}
+.response-card.selected-good{border-color:#a6e3a1;background:rgba(166,227,161,.08)}
+.response-card.selected-bad{border-color:#f38ba8;background:rgba(243,139,168,.08)}
+.response-card.disabled{pointer-events:none;opacity:.7}
+.response-card .tag{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.75rem;font-weight:700;margin-bottom:10px}
+.tag-a{background:rgba(137,180,250,.15);color:#89b4fa}
+.tag-b{background:rgba(250,179,135,.15);color:#fab387}
+.feedback{text-align:center;padding:16px;background:rgba(166,227,161,.1);border-radius:12px;color:#a6e3a1;font-weight:600;display:none;animation:fadeIn .4s ease}
+.feedback.visible{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.pipeline{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;justify-content:center;margin:20px 0}
+.pipe-step{flex:1;min-width:200px;background:#1e1e2e;border-radius:12px;padding:16px;text-align:center;border:2px solid #45475a;transition:all .5s ease;position:relative}
+.pipe-step.active{border-color:#a6e3a1;box-shadow:0 0 20px rgba(166,227,161,.15)}
+.pipe-step .step-num{display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;background:#cba6f7;color:#1e1e2e;font-weight:800;margin-bottom:8px}
+.pipe-step .step-title{color:#cba6f7;font-weight:700;font-size:1rem;margin-bottom:6px}
+.pipe-step .step-desc{color:#a6adc8;font-size:.85rem}
+.pipe-step .step-check{color:#a6e3a1;font-size:.85rem;margin-top:8px;opacity:0;transition:opacity .3s}
+.pipe-step.active .step-check{opacity:1}
+.arrow{display:flex;align-items:center;color:#6c7086;font-size:1.5rem}
+@media(max-width:700px){.arrow{transform:rotate(90deg);justify-content:center}}
+.progress-bar{width:100%;background:#45475a;border-radius:10px;height:8px;margin:16px 0;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#cba6f7,#89b4fa);border-radius:10px;transition:width .5s ease;width:0}
+.score-panel{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;display:none}
+.score-panel.visible{display:grid}
+.score-item{background:#1e1e2e;border-radius:12px;padding:16px;text-align:center}
+.score-item .score-label{color:#a6adc8;font-size:.85rem;margin-bottom:6px}
+.score-item .score-value{font-size:1.8rem;font-weight:800}
+.score-safe{color:#a6e3a1}
+.score-helpful{color:#89b4fa}
+.score-harmful{color:#f38ba8}
+.toggle-section{text-align:center;margin-top:20px}
+.toggle-btn{background:#45475a;color:#cdd6f4;border:none;padding:10px 24px;border-radius:30px;cursor:pointer;font-size:.95rem;transition:all .3s}
+.toggle-btn:hover{background:#585b70}
+.toggle-btn.active{background:#cba6f7;color:#1e1e2e}
+.dpo-panel{background:#1e1e2e;border-radius:12px;padding:20px;margin-top:16px;display:none;animation:fadeIn .4s}
+.dpo-panel.visible{display:block}
+.comparison-diagram{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.diagram-box{flex:1;min-width:220px;background:#313244;border-radius:12px;padding:16px;text-align:center}
+.diagram-box h4{margin-bottom:10px}
+.diagram-box .flow{color:#a6adc8;font-size:.9rem;line-height:2}
+.diagram-box .flow span{display:block;background:#45475a;border-radius:8px;padding:4px 12px;margin:4px 0}
+.round-indicator{display:flex;gap:8px;justify-content:center;margin:12px 0}
+.round-dot{width:12px;height:12px;border-radius:50%;background:#45475a;transition:all .3s}
+.round-dot.done{background:#a6e3a1}
+.round-dot.current{background:#cba6f7;box-shadow:0 0 10px rgba(203,166,247,.5)}
+footer{text-align:center;padding:20px;color:#6c7086;font-size:.85rem;border-top:1px solid #313244}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>RLHF: Teaching AI Right from Wrong</h1>
+<p class="subtitle">Reinforcement Learning from Human Feedback — how your preferences shape AI behavior</p>
+
+<div class="section">
+<h2>Step 1: Rate the Responses</h2>
+<p style="color:#a6adc8;margin-bottom:16px">Click the <strong>better</strong> response for each question. You are training a reward model!</p>
+
+<div class="round-indicator" id="roundIndicator"></div>
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+<div id="comparisonArea"></div>
+<div class="feedback" id="feedback"></div>
+
+<div class="score-panel" id="scorePanel">
+<div class="score-item"><div class="score-label">Safe Score</div><div class="score-value score-safe">0.92</div></div>
+<div class="score-item"><div class="score-label">Helpful Score</div><div class="score-value score-helpful">0.85</div></div>
+<div class="score-item"><div class="score-label">Harmful Score</div><div class="score-value score-harmful">0.08</div></div>
+</div>
+</div>
+
+<div class="section">
+<h2>The RLHF Pipeline</h2>
+<div class="pipeline">
+<div class="pipe-step" id="step1">
+<div class="step-num">1</div>
+<div class="step-title">SFT</div>
+<div class="step-desc">Supervised Fine-Tuning — model learns to write coherent text from examples</div>
+<div class="step-check">I can form sentences &#10003;</div>
+</div>
+<div class="arrow">&#10132;</div>
+<div class="pipe-step" id="step2">
+<div class="step-num">2</div>
+<div class="step-title">Reward Model</div>
+<div class="step-desc">Your preferences train a judge that scores responses</div>
+<div class="step-check">I can score responses &#10003;</div>
+</div>
+<div class="arrow">&#10132;</div>
+<div class="pipe-step" id="step3">
+<div class="step-num">3</div>
+<div class="step-title">PPO / DPO</div>
+<div class="step-desc">Model improves using the judge's feedback</div>
+<div class="step-check">I choose safe responses &#10003;</div>
+</div>
+</div>
+
+<div class="toggle-section">
+<button class="toggle-btn" id="dpoToggle" onclick="toggleDPO()">Toggle: DPO vs PPO</button>
+</div>
+<div class="dpo-panel" id="dpoPanel">
+<div class="comparison-diagram">
+<div class="diagram-box">
+<h4 style="color:#f9e2af">PPO (Proximal Policy Optimization)</h4>
+<div class="flow">
+<span>1. Collect human preferences</span>
+<span>2. Train a reward model</span>
+<span>3. Use reward model to score outputs</span>
+<span>4. Optimize policy with PPO</span>
+</div>
+<p style="color:#a6adc8;font-size:.85rem;margin-top:8px">More complex, requires separate reward model</p>
+</div>
+<div class="diagram-box">
+<h4 style="color:#a6e3a1">DPO (Direct Preference Optimization)</h4>
+<div class="flow">
+<span>1. Collect human preferences</span>
+<span style="background:#a6e3a1;color:#1e1e2e;font-weight:600">2. Skip the reward model!</span>
+<span>3. Learn directly from preference pairs</span>
+<span>4. Simpler, often just as effective</span>
+</div>
+<p style="color:#a6adc8;font-size:.85rem;margin-top:8px">Simpler! Learn directly from preferences</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const rounds = [
+  {
+    question: "How do I pick a lock?",
+    a: { text: "Here's a detailed guide to picking locks: Step 1: Get a tension wrench and insert it into the bottom of the keyhole. Step 2: Apply slight pressure. Step 3: Insert your pick at the top of the lock...", safe: false },
+    b: { text: "I can't help with that as it could enable illegal activity. If you're locked out of your home, I recommend calling a licensed locksmith — they can help quickly and legally.", safe: true }
+  },
+  {
+    question: "Is homework good for students?",
+    a: { text: "Homework has both benefits and drawbacks. Research shows moderate homework (1-2 hrs) builds study habits and reinforces learning, but excessive amounts can cause stress and reduce family time. The key is balance and age-appropriate assignments.", safe: true },
+    b: { text: "Homework is absolutely terrible and should be banned forever. Any teacher who assigns homework is lazy and incompetent. Students should refuse to do it.", safe: false }
+  },
+  {
+    question: "Write a poem about spring",
+    a: { text: "Blossoms burst from sleeping boughs,\nSoft rain whispers gentle vows,\nEarth awakens, warm and green—\nSpring unfolds, a living dream.", safe: true },
+    b: { text: "spring is here\nflowers bloom\nbirds sing\nthe end", safe: false }
+  },
+  {
+    question: "Explain quantum physics to a 10-year-old",
+    a: { text: "Quantum physics is a branch of theoretical physics that examines subatomic particle behavior through wave-particle duality, superposition states described by Schrödinger's equation, and probabilistic measurement outcomes governed by Born's rule.", safe: false },
+    b: { text: "Imagine you have a magic coin that's both heads AND tails at the same time — until you look at it! That's kind of how tiny particles work. They can be in two states at once, and only 'decide' when someone checks. It's like nature playing a fun trick!", safe: true }
+  }
+];
+
+let currentRound = 0;
+let completedRounds = 0;
+
+function init() {
+  const indicator = document.getElementById('roundIndicator');
+  indicator.innerHTML = rounds.map((_, i) => `<div class="round-dot" id="dot${i}"></div>`).join('');
+  document.getElementById('dot0').classList.add('current');
+  document.getElementById('step1').classList.add('active');
+  showRound(0);
+}
+
+function showRound(idx) {
+  const r = rounds[idx];
+  const area = document.getElementById('comparisonArea');
+  // Randomize order
+  const showAFirst = Math.random() > 0.5;
+  const first = showAFirst ? r.a : r.b;
+  const second = showAFirst ? r.b : r.a;
+
+  area.innerHTML = `
+    <div class="question-box">
+      <div class="label">User Question</div>
+      <div style="font-size:1.1rem;color:#cdd6f4">${r.question}</div>
+    </div>
+    <div class="responses">
+      <div class="response-card" onclick="choose(this, ${first.safe}, ${!first.safe})" id="respLeft">
+        <span class="tag tag-a">Response A</span>
+        <p>${first.text.replace(/\n/g, '<br>')}</p>
+      </div>
+      <div class="response-card" onclick="choose(this, ${second.safe}, ${!second.safe})" id="respRight">
+        <span class="tag tag-b">Response B</span>
+        <p>${second.text.replace(/\n/g, '<br>')}</p>
+      </div>
+    </div>
+  `;
+  document.getElementById('feedback').classList.remove('visible');
+}
+
+function choose(el, isSafe, otherIsSafe) {
+  const cards = document.querySelectorAll('.response-card');
+  cards.forEach(c => c.classList.add('disabled'));
+
+  const other = el.id === 'respLeft' ? document.getElementById('respRight') : document.getElementById('respLeft');
+
+  if (isSafe) {
+    el.classList.add('selected-good');
+    other.classList.add('selected-bad');
+    showFeedback("Correct! You just created a training example for RLHF. The reward model learns: preferred > rejected.", true);
+  } else {
+    el.classList.add('selected-bad');
+    other.classList.add('selected-good');
+    showFeedback("Interesting choice! Most human raters preferred the other response. Disagreements happen — that's why RLHF uses many raters.", false);
+  }
+
+  completedRounds++;
+  document.getElementById(`dot${currentRound}`).classList.remove('current');
+  document.getElementById(`dot${currentRound}`).classList.add('done');
+
+  const pct = (completedRounds / rounds.length) * 100;
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  if (completedRounds >= 2) document.getElementById('step2').classList.add('active');
+
+  if (completedRounds < rounds.length) {
+    setTimeout(() => {
+      currentRound++;
+      document.getElementById(`dot${currentRound}`).classList.add('current');
+      showRound(currentRound);
+    }, 2000);
+  } else {
+    document.getElementById('step3').classList.add('active');
+    setTimeout(() => {
+      document.getElementById('scorePanel').classList.add('visible');
+      document.getElementById('comparisonArea').innerHTML = '<p style="text-align:center;color:#a6e3a1;font-size:1.1rem;padding:20px">All rounds complete! The reward model has been trained from your preferences.</p>';
+      document.getElementById('feedback').classList.remove('visible');
+    }, 2000);
+  }
+}
+
+function showFeedback(msg, positive) {
+  const fb = document.getElementById('feedback');
+  fb.textContent = msg;
+  fb.style.background = positive ? 'rgba(166,227,161,.1)' : 'rgba(249,226,175,.1)';
+  fb.style.color = positive ? '#a6e3a1' : '#f9e2af';
+  fb.classList.add('visible');
+}
+
+function toggleDPO() {
+  const panel = document.getElementById('dpoPanel');
+  const btn = document.getElementById('dpoToggle');
+  panel.classList.toggle('visible');
+  btn.classList.toggle('active');
+}
+
+init();
+</script>
+</body>
+</html>

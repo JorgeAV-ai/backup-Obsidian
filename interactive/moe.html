@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mixture of Experts: A Team of Specialists</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:1.5rem 1rem .5rem;font-size:1.8rem;background:linear-gradient(135deg,#89b4fa,#cba6f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:1.5rem;font-size:.95rem}
+.container{max-width:1100px;margin:0 auto;padding:0 1rem;flex:1;width:100%}
+.input-section{background:#313244;border-radius:12px;padding:1.2rem;margin-bottom:1.5rem}
+.input-section label{font-weight:600;display:block;margin-bottom:.5rem;color:#89b4fa}
+.input-row{display:flex;gap:.8rem;flex-wrap:wrap;align-items:center}
+.input-row input{flex:1;min-width:200px;padding:.6rem 1rem;border-radius:8px;border:2px solid #45475a;background:#1e1e2e;color:#cdd6f4;font-size:1rem;outline:none;transition:border .2s}
+.input-row input:focus{border-color:#89b4fa}
+.example-btns{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem}
+.example-btns button{padding:.4rem .8rem;border-radius:6px;border:1px solid #585b70;background:#45475a;color:#cdd6f4;cursor:pointer;font-size:.8rem;transition:all .2s}
+.example-btns button:hover{background:#585b70;border-color:#89b4fa}
+.router-box{text-align:center;margin:1rem 0;padding:.8rem;background:#313244;border-radius:10px;font-size:1rem}
+.router-box .router-label{font-weight:700;color:#f9e2af;font-size:1.1rem;margin-bottom:.3rem}
+.experts-row{display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap;margin:1.2rem 0}
+.expert{width:110px;padding:.8rem .4rem;border-radius:12px;background:#313244;border:2px solid #45475a;text-align:center;transition:all .4s ease;position:relative}
+.expert .emoji{font-size:2rem;display:block;margin-bottom:.3rem}
+.expert .name{font-size:.78rem;color:#a6adc8;font-weight:600}
+.expert.active{border-color:#a6e3a1;background:#1e3a2a;box-shadow:0 0 18px rgba(166,227,161,.25)}
+.expert.active .name{color:#a6e3a1}
+.expert .prob-bar{height:4px;background:#45475a;border-radius:2px;margin-top:.5rem;overflow:hidden}
+.expert .prob-bar .fill{height:100%;border-radius:2px;transition:width .5s ease,background .3s;width:0}
+.expert .prob-val{font-size:.7rem;color:#a6adc8;margin-top:.2rem}
+.gating-display{text-align:center;margin:1rem 0;padding:.8rem 1rem;background:#313244;border-radius:10px;font-size:.95rem;color:#f9e2af;min-height:2.5rem;display:flex;align-items:center;justify-content:center}
+.stats-row{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin:1rem 0}
+.stat-card{background:#313244;border-radius:10px;padding:.8rem 1.2rem;text-align:center;min-width:150px}
+.stat-card .val{font-size:1.3rem;font-weight:700;color:#89b4fa}
+.stat-card .label{font-size:.75rem;color:#a6adc8;margin-top:.2rem}
+.controls{background:#313244;border-radius:12px;padding:1.2rem;margin:1rem 0}
+.controls label{font-weight:600;color:#89b4fa;margin-right:.5rem}
+.controls input[type=range]{width:200px;accent-color:#89b4fa;vertical-align:middle}
+.controls .slider-val{color:#f9e2af;font-weight:700;margin-left:.5rem}
+.load-balance{margin:1rem 0;padding:1rem;background:#313244;border-radius:10px}
+.load-balance h3{font-size:.95rem;color:#89b4fa;margin-bottom:.6rem}
+.lb-bars{display:flex;gap:.3rem;flex-wrap:wrap}
+.lb-bar{flex:1;min-width:80px;text-align:center}
+.lb-bar .bar-outer{height:60px;background:#45475a;border-radius:6px;position:relative;overflow:hidden;display:flex;align-items:flex-end}
+.lb-bar .bar-inner{width:100%;border-radius:6px 6px 0 0;transition:height .4s,background .3s;background:#89b4fa}
+.lb-bar .bar-inner.overloaded{background:#f38ba8}
+.lb-bar .lbl{font-size:.65rem;color:#a6adc8;margin-top:.2rem}
+.warning{color:#f38ba8;font-weight:600;text-align:center;margin-top:.5rem;font-size:.85rem;min-height:1.2rem}
+footer{text-align:center;padding:1.5rem;color:#585b70;font-size:.8rem;margin-top:auto}
+@media(max-width:700px){.experts-row{gap:.4rem}.expert{width:80px;padding:.5rem .3rem}.expert .emoji{font-size:1.5rem}.stat-card{min-width:120px}}
+</style>
+</head>
+<body>
+<h1>Mixture of Experts: A Team of Specialists</h1>
+<p class="subtitle">See how a router selects the best expert sub-networks for each input</p>
+<div class="container">
+  <div class="input-section">
+    <label>Input Text</label>
+    <div class="input-row">
+      <input type="text" id="inputText" value="def quicksort(arr):" placeholder="Type or pick an example...">
+    </div>
+    <div class="example-btns">
+      <button onclick="setExample('def quicksort(arr):')">💻 Code</button>
+      <button onclick="setExample('The patient presents with fever and shortness of breath')">🏥 Medical</button>
+      <button onclick="setExample('Hey what\'s up!')">🗣️ Casual</button>
+      <button onclick="setExample('The Supreme Court ruled that the statute violates due process')">⚖️ Legal</button>
+      <button onclick="setExample('Breaking: earthquake hits coastal region')">📰 News</button>
+      <button onclick="setExample('Solve the integral of x^2 * e^x dx')">📊 Math</button>
+      <button onclick="setExample('The CRISPR-Cas9 enzyme binds to guide RNA')">🔬 Science</button>
+      <button onclick="setExample('Write me a poem about the ocean at midnight')">🎨 Creative</button>
+    </div>
+  </div>
+
+  <div class="router-box">
+    <div class="router-label">🔀 Router (Gating Network)</div>
+    <div id="routerDesc">Analyzing input to select top-K experts...</div>
+  </div>
+
+  <div class="experts-row" id="expertsRow"></div>
+
+  <div class="gating-display" id="gatingDisplay">Enter text to see gating weights</div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="val">47B</div><div class="label">Total Parameters</div></div>
+    <div class="stat-card"><div class="val" id="activeParams">~13B</div><div class="label">Active Parameters</div></div>
+    <div class="stat-card"><div class="val" id="activePercent">28%</div><div class="label">Active %</div></div>
+    <div class="stat-card"><div class="val" id="computeSaved">72%</div><div class="label">Compute Saved!</div></div>
+  </div>
+
+  <div class="controls">
+    <label>Top-K Experts:</label>
+    <input type="range" id="topK" min="1" max="4" value="2">
+    <span class="slider-val" id="topKVal">2</span>
+    <span style="color:#a6adc8;font-size:.8rem;margin-left:1rem">More experts = better quality but more compute</span>
+  </div>
+
+  <div class="load-balance">
+    <h3>Expert Load Distribution (last 10 queries)</h3>
+    <div class="lb-bars" id="lbBars"></div>
+    <div class="warning" id="lbWarning"></div>
+  </div>
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const experts = [
+  {emoji:'🔬',name:'Science',keys:['crispr','enzyme','rna','dna','cell','atom','physics','chemical','hypothesis','experiment','biology','molecule','quantum','photon','gene']},
+  {emoji:'📰',name:'News',keys:['breaking','reported','election','earthquake','government','officials','announced','crisis','update','headline','press','journalist','media']},
+  {emoji:'💻',name:'Code',keys:['def ','function','const ','let ','var ','import','class ','return','arr','console','print(','sort','loop','array','int ','void','python','javascript','code','algorithm','compile','debug']},
+  {emoji:'🎨',name:'Creative',keys:['poem','story','write me','imagine','once upon','creative','beautiful','dream','paint','sing','melody','art','fiction','novel','metaphor']},
+  {emoji:'📊',name:'Math',keys:['integral','solve','equation','matrix','derivative','calculate','sum','probability','theorem','proof','formula','algebra','x^','dx','graph','vector','compute']},
+  {emoji:'🏥',name:'Medical',keys:['patient','fever','diagnosis','symptom','treatment','blood','disease','medical','clinical','surgery','dose','prescription','chronic','mg','breath']},
+  {emoji:'⚖️',name:'Legal',keys:['court','statute','law','ruling','attorney','legal','judge','plaintiff','defendant','violation','amendment','constitution','due process','jurisdiction','contract']},
+  {emoji:'🗣️',name:'Casual',keys:['hey','what\'s up','lol','cool','awesome','hi','hello','sup','yeah','nah','gonna','wanna','chill','dude','bro','haha','wow','nice']}
+];
+
+let loadCounts = new Array(8).fill(0);
+let queryCount = 0;
+
+function score(text) {
+  const t = text.toLowerCase();
+  return experts.map(e => {
+    let s = 0;
+    e.keys.forEach(k => { if (t.includes(k)) s += 1 + k.length * 0.1; });
+    return s + Math.random() * 0.05;
+  });
+}
+
+function softmax(arr) {
+  const max = Math.max(...arr);
+  const exps = arr.map(x => Math.exp((x - max) * 3));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return exps.map(x => x / sum);
+}
+
+function renderExperts() {
+  const row = document.getElementById('expertsRow');
+  row.innerHTML = '';
+  experts.forEach((e, i) => {
+    row.innerHTML += `<div class="expert" id="exp${i}"><span class="emoji">${e.emoji}</span><span class="name">${e.name}</span><div class="prob-bar"><div class="fill" id="fill${i}"></div></div><div class="prob-val" id="pval${i}"></div></div>`;
+  });
+}
+
+function renderLB() {
+  const el = document.getElementById('lbBars');
+  el.innerHTML = '';
+  const max = Math.max(...loadCounts, 1);
+  experts.forEach((e, i) => {
+    const h = (loadCounts[i] / max) * 100;
+    const overloaded = queryCount >= 3 && loadCounts[i] / Math.max(queryCount, 1) > 0.6;
+    el.innerHTML += `<div class="lb-bar"><div class="bar-outer"><div class="bar-inner${overloaded ? ' overloaded' : ''}" style="height:${h}%"></div></div><div class="lbl">${e.emoji}</div></div>`;
+  });
+  const maxIdx = loadCounts.indexOf(Math.max(...loadCounts));
+  const ratio = loadCounts[maxIdx] / Math.max(queryCount, 1);
+  document.getElementById('lbWarning').textContent = (queryCount >= 3 && ratio > 0.6) ? `Expert ${experts[maxIdx].emoji} ${experts[maxIdx].name} is overloaded! Load balancing loss penalizes this.` : '';
+}
+
+function update() {
+  const text = document.getElementById('inputText').value;
+  const K = parseInt(document.getElementById('topK').value);
+  document.getElementById('topKVal').textContent = K;
+
+  const raw = score(text);
+  const probs = softmax(raw);
+
+  const indices = probs.map((p, i) => ({p, i})).sort((a, b) => b.p - a.p);
+  const topIndices = indices.slice(0, K).map(x => x.i);
+
+  // Update load
+  queryCount++;
+  topIndices.forEach(i => loadCounts[i]++);
+  if (queryCount > 10) { loadCounts = loadCounts.map(c => Math.max(0, c - 1)); queryCount = 10; }
+
+  experts.forEach((_, i) => {
+    const el = document.getElementById('exp' + i);
+    const fill = document.getElementById('fill' + i);
+    const pval = document.getElementById('pval' + i);
+    const isActive = topIndices.includes(i);
+    el.className = 'expert' + (isActive ? ' active' : '');
+    fill.style.width = (probs[i] * 100) + '%';
+    fill.style.background = isActive ? '#a6e3a1' : '#585b70';
+    pval.textContent = (probs[i] * 100).toFixed(1) + '%';
+  });
+
+  // Gating display
+  const topK = indices.slice(0, K);
+  const sumTop = topK.reduce((a, b) => a + b.p, 0);
+  const normalized = topK.map(x => ({...x, w: x.p / sumTop}));
+  const parts = normalized.map(x => `${experts[x.i].emoji} ${experts[x.i].name}: ${x.w.toFixed(2)}`).join(' | ');
+  document.getElementById('gatingDisplay').textContent = parts + ' → Weighted sum of their outputs';
+
+  // Stats
+  const activeB = Math.round(47 * (K / 8));
+  const pct = Math.round((K / 8) * 100);
+  document.getElementById('activeParams').textContent = `~${activeB}B`;
+  document.getElementById('activePercent').textContent = pct + '%';
+  document.getElementById('computeSaved').textContent = (100 - pct) + '%';
+
+  document.getElementById('routerDesc').textContent = `Selected top-${K} experts for: "${text.slice(0, 50)}${text.length > 50 ? '...' : ''}"`;
+
+  renderLB();
+}
+
+function setExample(text) {
+  document.getElementById('inputText').value = text;
+  update();
+}
+
+renderExperts();
+renderLB();
+document.getElementById('inputText').addEventListener('input', update);
+document.getElementById('topK').addEventListener('input', update);
+update();
+</script>
+</body>
+</html>

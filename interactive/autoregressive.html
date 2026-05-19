@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How ChatGPT Writes: Word by Word</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    overflow-x: hidden;
+  }
+  h1 { font-size: 1.7rem; color: #cba6f7; margin-bottom: 4px; text-align: center; }
+  .subtitle { color: #a6adc8; font-size: 0.92rem; margin-bottom: 16px; text-align: center; max-width: 650px; }
+
+  /* Prompt selector */
+  .prompt-selector {
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 14px;
+  }
+  .prompt-btn {
+    background: #313244; color: #cdd6f4; border: 2px solid #45475a;
+    border-radius: 8px; padding: 8px 16px; font-size: 0.85rem; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .prompt-btn:hover { border-color: #cba6f7; }
+  .prompt-btn.active { border-color: #cba6f7; background: #45475a; }
+
+  /* Controls row */
+  .controls {
+    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+    align-items: center; margin-bottom: 14px;
+  }
+  button {
+    background: #89b4fa; color: #1e1e2e; border: none; border-radius: 8px;
+    padding: 10px 20px; font-weight: 700; font-size: 0.88rem; cursor: pointer;
+    transition: background 0.2s;
+  }
+  button:hover { background: #74c7ec; }
+  button.reset { background: #f38ba8; }
+  button.reset:hover { background: #eba0ac; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .slider-group {
+    display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #a6adc8;
+  }
+  .slider-group label { white-space: nowrap; }
+  input[type=range] {
+    -webkit-appearance: none; width: 110px; height: 6px;
+    background: #45475a; border-radius: 3px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px;
+    background: #cba6f7; border-radius: 50%; cursor: pointer;
+  }
+  .temp-label { min-width: 28px; text-align: center; font-weight: 600; color: #f9e2af; }
+
+  .step-info {
+    text-align: center; font-size: 0.88rem; color: #a6e3a1; margin-bottom: 10px; min-height: 1.4em;
+  }
+
+  /* Sequence display */
+  .sequence-area {
+    width: 95vw; max-width: 1000px; margin-bottom: 18px;
+  }
+  .section-label {
+    font-size: 0.78rem; color: #a6adc8; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 6px;
+  }
+  .token-row {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;
+    min-height: 56px; padding: 10px; background: #181825;
+    border-radius: 10px; border: 1px solid #313244; position: relative;
+  }
+  .token-box {
+    background: #313244; border: 2px solid #585b70; border-radius: 8px;
+    padding: 8px 14px; font-weight: 600; font-size: 0.92rem;
+    opacity: 0; transform: translateY(12px) scale(0.9);
+    transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.3s, box-shadow 0.3s;
+  }
+  .token-box.visible { opacity: 1; transform: translateY(0) scale(1); }
+  .token-box.prompt-token { border-color: #585b70; color: #a6adc8; }
+  .token-box.generated { border-color: #a6e3a1; color: #a6e3a1; }
+  .token-box.highlight {
+    border-color: #f9e2af; box-shadow: 0 0 12px rgba(249,226,175,0.35);
+  }
+  .token-box.cursor {
+    border-right: 2px solid #f9e2af;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { border-right-color: transparent; } }
+
+  /* Connection lines canvas */
+  .canvas-wrap {
+    position: relative; width: 95vw; max-width: 1000px;
+  }
+  canvas#connCanvas {
+    width: 100%; display: block;
+  }
+
+  /* Main content area */
+  .main-area {
+    display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
+    width: 95vw; max-width: 1000px;
+  }
+
+  /* Probability panel */
+  .prob-panel {
+    flex: 1; min-width: 280px; max-width: 450px;
+    background: #181825; border-radius: 12px; padding: 16px; border: 1px solid #313244;
+  }
+  .prob-title { font-size: 0.9rem; font-weight: 600; color: #cba6f7; margin-bottom: 10px; }
+  .prob-bar-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;
+    padding: 4px 6px; border-radius: 6px; transition: background 0.2s;
+  }
+  .prob-bar-row:hover { background: #313244; }
+  .prob-bar-row.selected { background: #313244; }
+  .prob-label {
+    width: 72px; text-align: right; font-size: 0.85rem; color: #cdd6f4;
+    font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .prob-track {
+    flex: 1; height: 22px; background: #313244; border-radius: 5px;
+    overflow: hidden; position: relative;
+  }
+  .prob-fill {
+    height: 100%; border-radius: 5px; transition: width 0.5s ease;
+  }
+  .prob-val { font-size: 0.8rem; color: #a6adc8; width: 44px; text-align: right; }
+  .click-hint {
+    font-size: 0.72rem; color: #585b70; text-align: center; margin-top: 6px; font-style: italic;
+  }
+
+  /* Attention heatmap and mask panel */
+  .attn-panel {
+    flex: 1; min-width: 280px; max-width: 500px;
+    background: #181825; border-radius: 12px; padding: 16px; border: 1px solid #313244;
+  }
+  .attn-title { font-size: 0.9rem; font-weight: 600; color: #cba6f7; margin-bottom: 10px; }
+
+  .heatmap-row {
+    display: flex; gap: 3px; justify-content: flex-start; flex-wrap: wrap; margin-bottom: 6px;
+  }
+  .hm-cell {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .hm-bar {
+    width: 36px; height: 18px; border-radius: 4px; transition: background 0.4s;
+  }
+  .hm-label { font-size: 0.6rem; color: #a6adc8; }
+
+  /* Causal mask */
+  .mask-section { margin-top: 14px; }
+  table.mask { border-collapse: collapse; }
+  table.mask td {
+    width: 28px; height: 28px; text-align: center; font-size: 0.6rem;
+    border: 1px solid #313244; transition: background 0.3s;
+  }
+  table.mask td.on { background: #89b4fa; color: #1e1e2e; font-weight: 700; }
+  table.mask td.off { background: #1e1e2e; color: #45475a; }
+  table.mask td.current-row { background: #f9e2af; color: #1e1e2e; font-weight: 700; }
+  table.mask th {
+    font-size: 0.55rem; color: #a6adc8; padding: 2px 3px;
+    max-width: 32px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  table.mask th.col-h {
+    writing-mode: vertical-rl; transform: rotate(180deg); height: 42px;
+  }
+
+  footer { margin-top: 28px; color: #585b70; font-size: 0.8rem; text-align: center; }
+
+  @media (max-width: 600px) {
+    table.mask td { width: 22px; height: 22px; font-size: 0.5rem; }
+    .hm-bar { width: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>How ChatGPT Writes: Word by Word</h1>
+<p class="subtitle">Autoregressive generation: the model predicts one word at a time, always looking only at previous words.</p>
+
+<div class="prompt-selector" id="promptSelector"></div>
+
+<div class="controls">
+  <button id="btnGenerate">Generate Next Word</button>
+  <button class="reset" id="btnReset">Reset</button>
+  <div class="slider-group">
+    <label for="tempSlider">Temperature:</label>
+    <input type="range" id="tempSlider" min="0" max="20" value="2" step="1">
+    <span class="temp-label" id="tempLabel">0.2</span>
+  </div>
+</div>
+<div class="step-info" id="stepInfo">Select a prompt and press "Generate Next Word"</div>
+
+<div class="sequence-area">
+  <div class="section-label">Generated Sequence</div>
+  <div class="token-row" id="tokenRow"></div>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="connCanvas" height="60"></canvas>
+</div>
+
+<div class="main-area">
+  <div class="prob-panel">
+    <div class="prob-title" id="probTitle">Next Word Probabilities</div>
+    <div id="probContainer"></div>
+    <div class="click-hint" id="clickHint">Click any candidate to pick it instead of the top choice</div>
+  </div>
+
+  <div class="attn-panel">
+    <div class="attn-title">Attention Heatmap (newest word)</div>
+    <div class="heatmap-row" id="heatmapRow"></div>
+    <div class="mask-section">
+      <div class="attn-title" style="margin-top:10px;">Causal Mask -- each word can only see previous words</div>
+      <div id="maskContainer"></div>
+    </div>
+  </div>
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+(function() {
+  // --- DATA: Pre-set prompts with scripted generation steps ---
+  const PROMPTS = {
+    'The capital of Spain is': {
+      prompt: ['The','capital','of','Spain','is'],
+      steps: [
+        {
+          candidates: ['Madrid','Barcelona','Seville','a','located'],
+          probs: [0.89, 0.05, 0.02, 0.01, 0.01],
+          default: 0,
+          // attention from new word to each existing token (high for "capital" and "Spain")
+          attention: [0.05, 0.35, 0.05, 0.40, 0.15]
+        },
+        {
+          candidates: [',','.','and','which','--'],
+          probs: [0.45, 0.30, 0.10, 0.08, 0.02],
+          default: 0,
+          attention: [0.03, 0.10, 0.03, 0.15, 0.09, 0.60]
+        },
+        {
+          candidates: ['a','the','one','known','famous'],
+          probs: [0.35, 0.28, 0.05, 0.20, 0.10],
+          default: 0,
+          attention: [0.03, 0.05, 0.02, 0.08, 0.05, 0.55, 0.22]
+        },
+        {
+          candidates: ['vibrant','beautiful','historic','major','city'],
+          probs: [0.22, 0.18, 0.15, 0.12, 0.30],
+          default: 4,
+          attention: [0.04, 0.06, 0.02, 0.10, 0.04, 0.35, 0.09, 0.30]
+        },
+        {
+          candidates: ['known','famous','with','in','rich'],
+          probs: [0.32, 0.18, 0.22, 0.12, 0.08],
+          default: 0,
+          attention: [0.03, 0.08, 0.02, 0.15, 0.04, 0.25, 0.05, 0.08, 0.30]
+        },
+        {
+          candidates: ['for','around','throughout','across','by'],
+          probs: [0.72, 0.08, 0.06, 0.04, 0.03],
+          default: 0,
+          attention: [0.02, 0.04, 0.02, 0.06, 0.03, 0.15, 0.03, 0.05, 0.10, 0.50]
+        },
+        {
+          candidates: ['its','art','the','great','world-class'],
+          probs: [0.45, 0.15, 0.18, 0.08, 0.10],
+          default: 0,
+          attention: [0.02, 0.05, 0.02, 0.12, 0.03, 0.30, 0.04, 0.06, 0.06, 0.10, 0.20]
+        },
+        {
+          candidates: ['art','culture','museums','cuisine','history'],
+          probs: [0.25, 0.22, 0.20, 0.18, 0.12],
+          default: 0,
+          attention: [0.02, 0.04, 0.02, 0.10, 0.03, 0.25, 0.03, 0.05, 0.05, 0.06, 0.15, 0.20]
+        },
+      ]
+    },
+    'To make bread you need': {
+      prompt: ['To','make','bread','you','need'],
+      steps: [
+        {
+          candidates: ['flour','water','to','a','the'],
+          probs: [0.62, 0.12, 0.10, 0.08, 0.05],
+          default: 0,
+          attention: [0.05, 0.20, 0.45, 0.05, 0.25]
+        },
+        {
+          candidates: [',','.','and','water','mixed'],
+          probs: [0.55, 0.08, 0.15, 0.12, 0.05],
+          default: 0,
+          attention: [0.03, 0.10, 0.15, 0.04, 0.08, 0.60]
+        },
+        {
+          candidates: ['water','yeast','salt','sugar','butter'],
+          probs: [0.40, 0.25, 0.15, 0.10, 0.06],
+          default: 0,
+          attention: [0.02, 0.08, 0.20, 0.03, 0.07, 0.30, 0.30]
+        },
+        {
+          candidates: [',','.','and','salt','mixed'],
+          probs: [0.50, 0.10, 0.18, 0.12, 0.04],
+          default: 0,
+          attention: [0.02, 0.06, 0.12, 0.03, 0.05, 0.15, 0.07, 0.50]
+        },
+        {
+          candidates: ['yeast','salt','and','sugar','a'],
+          probs: [0.35, 0.28, 0.20, 0.08, 0.04],
+          default: 0,
+          attention: [0.02, 0.06, 0.15, 0.03, 0.06, 0.20, 0.08, 0.10, 0.30]
+        },
+        {
+          candidates: [',','and','.','salt','sugar'],
+          probs: [0.40, 0.25, 0.10, 0.12, 0.08],
+          default: 0,
+          attention: [0.02, 0.05, 0.10, 0.02, 0.05, 0.12, 0.05, 0.08, 0.06, 0.45]
+        },
+        {
+          candidates: ['and','salt','plus','a','some'],
+          probs: [0.45, 0.22, 0.08, 0.10, 0.08],
+          default: 0,
+          attention: [0.02, 0.04, 0.10, 0.02, 0.05, 0.15, 0.08, 0.10, 0.09, 0.10, 0.25]
+        },
+        {
+          candidates: ['salt','a','patience','time','warmth'],
+          probs: [0.35, 0.15, 0.22, 0.12, 0.10],
+          default: 0,
+          attention: [0.02, 0.05, 0.12, 0.03, 0.06, 0.12, 0.08, 0.06, 0.08, 0.06, 0.08, 0.24]
+        },
+      ]
+    },
+    'Machine learning is': {
+      prompt: ['Machine','learning','is'],
+      steps: [
+        {
+          candidates: ['a','the','an','when','how'],
+          probs: [0.52, 0.18, 0.12, 0.08, 0.05],
+          default: 0,
+          attention: [0.30, 0.45, 0.25]
+        },
+        {
+          candidates: ['field','branch','subset','type','method'],
+          probs: [0.35, 0.25, 0.18, 0.10, 0.08],
+          default: 0,
+          attention: [0.20, 0.30, 0.10, 0.40]
+        },
+        {
+          candidates: ['of','in','that','where','within'],
+          probs: [0.65, 0.10, 0.10, 0.06, 0.04],
+          default: 0,
+          attention: [0.10, 0.15, 0.08, 0.07, 0.60]
+        },
+        {
+          candidates: ['artificial','computer','data','AI','modern'],
+          probs: [0.45, 0.22, 0.12, 0.10, 0.06],
+          default: 0,
+          attention: [0.15, 0.25, 0.05, 0.05, 0.10, 0.40]
+        },
+        {
+          candidates: ['intelligence','science','vision','systems','analysis'],
+          probs: [0.68, 0.12, 0.06, 0.05, 0.04],
+          default: 0,
+          attention: [0.10, 0.15, 0.05, 0.04, 0.06, 0.08, 0.52]
+        },
+        {
+          candidates: ['that','where','which','focused','enabling'],
+          probs: [0.38, 0.12, 0.20, 0.10, 0.12],
+          default: 0,
+          attention: [0.08, 0.15, 0.08, 0.04, 0.12, 0.05, 0.08, 0.40]
+        },
+        {
+          candidates: ['enables','allows','teaches','lets','helps'],
+          probs: [0.30, 0.22, 0.18, 0.12, 0.10],
+          default: 0,
+          attention: [0.12, 0.18, 0.06, 0.05, 0.08, 0.04, 0.07, 0.05, 0.35]
+        },
+        {
+          candidates: ['computers','machines','systems','algorithms','models'],
+          probs: [0.35, 0.25, 0.15, 0.12, 0.08],
+          default: 0,
+          attention: [0.10, 0.15, 0.04, 0.04, 0.06, 0.04, 0.06, 0.06, 0.10, 0.35]
+        },
+      ]
+    }
+  };
+
+  const PROB_COLORS = ['#a6e3a1','#89b4fa','#f9e2af','#fab387','#f38ba8'];
+
+  let currentPromptKey = 'The capital of Spain is';
+  let promptData = PROMPTS[currentPromptKey];
+  let sequence = [];
+  let genStep = 0;
+  let animating = false;
+
+  const tokenRow = document.getElementById('tokenRow');
+  const probContainer = document.getElementById('probContainer');
+  const probTitle = document.getElementById('probTitle');
+  const heatmapRow = document.getElementById('heatmapRow');
+  const maskContainer = document.getElementById('maskContainer');
+  const stepInfoEl = document.getElementById('stepInfo');
+  const clickHint = document.getElementById('clickHint');
+  const connCanvas = document.getElementById('connCanvas');
+  const connCtx = connCanvas.getContext('2d');
+  const btnGenerate = document.getElementById('btnGenerate');
+  const tempSlider = document.getElementById('tempSlider');
+  const tempLabel = document.getElementById('tempLabel');
+
+  // Build prompt selector buttons
+  function buildPromptSelector() {
+    const sel = document.getElementById('promptSelector');
+    sel.innerHTML = '';
+    Object.keys(PROMPTS).forEach(key => {
+      const btn = document.createElement('button');
+      btn.className = 'prompt-btn' + (key === currentPromptKey ? ' active' : '');
+      btn.textContent = '"' + key + '..."';
+      btn.addEventListener('click', () => {
+        currentPromptKey = key;
+        promptData = PROMPTS[key];
+        sel.querySelectorAll('.prompt-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        resetAll();
+      });
+      sel.appendChild(btn);
+    });
+  }
+
+  tempSlider.addEventListener('input', () => {
+    tempLabel.textContent = (parseInt(tempSlider.value) / 10).toFixed(1);
+  });
+
+  function getTemperature() {
+    return Math.max(0.01, parseInt(tempSlider.value) / 10);
+  }
+
+  // Apply temperature to probabilities and optionally sample
+  function applyTemperature(probs) {
+    const T = getTemperature();
+    // Convert probs to logits, scale, re-softmax
+    const logits = probs.map(p => Math.log(Math.max(p, 1e-10)));
+    const scaled = logits.map(l => l / T);
+    const maxS = Math.max(...scaled);
+    const exps = scaled.map(s => Math.exp(s - maxS));
+    const sumExp = exps.reduce((a, b) => a + b, 0);
+    return exps.map(e => e / sumExp);
+  }
+
+  function sampleFromProbs(probs) {
+    const r = Math.random();
+    let cum = 0;
+    for (let i = 0; i < probs.length; i++) {
+      cum += probs[i];
+      if (r < cum) return i;
+    }
+    return probs.length - 1;
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // Add a token box
+  function addTokenBox(word, type) {
+    const box = document.createElement('div');
+    box.className = 'token-box ' + type;
+    box.textContent = word;
+    tokenRow.appendChild(box);
+    requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add('visible')));
+    return box;
+  }
+
+  // Initialize with prompt tokens
+  function showPrompt() {
+    tokenRow.innerHTML = '';
+    sequence = [...promptData.prompt];
+    sequence.forEach(w => {
+      const box = addTokenBox(w, 'prompt-token');
+      box.classList.add('visible');
+    });
+  }
+
+  // Draw connection lines from previous tokens to newest
+  function drawConnections() {
+    const wrap = connCanvas.parentElement;
+    connCanvas.width = wrap.offsetWidth;
+    connCanvas.height = 60;
+    connCtx.clearRect(0, 0, connCanvas.width, connCanvas.height);
+
+    if (genStep <= 0) return;
+    const stepData = getStepData();
+    if (!stepData) return;
+
+    const boxes = tokenRow.querySelectorAll('.token-box');
+    const newIdx = sequence.length - 1;
+    if (!boxes[newIdx]) return;
+
+    const rowRect = tokenRow.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    const toBox = boxes[newIdx];
+    const toRect = toBox.getBoundingClientRect();
+    const toX = toRect.left + toRect.width / 2 - wrapRect.left;
+    const toY = 4;
+
+    const attn = stepData.attention;
+    for (let i = 0; i < Math.min(attn.length, newIdx); i++) {
+      const fromBox = boxes[i];
+      if (!fromBox) continue;
+      const fromRect = fromBox.getBoundingClientRect();
+      const fromX = fromRect.left + fromRect.width / 2 - wrapRect.left;
+      const fromY = 4;
+      const w = attn[i];
+
+      connCtx.beginPath();
+      connCtx.moveTo(fromX, fromY);
+      const cpY = 20 + w * 30;
+      connCtx.quadraticCurveTo((fromX + toX) / 2, cpY, toX, toY);
+      connCtx.strokeStyle = w > 0.25 ? '#f9e2af' : w > 0.1 ? '#89b4fa' : '#585b70';
+      connCtx.globalAlpha = 0.3 + w * 0.7;
+      connCtx.lineWidth = 1 + w * 5;
+      connCtx.stroke();
+      connCtx.globalAlpha = 1;
+    }
+  }
+
+  // Get step data for current genStep (0-indexed)
+  function getStepData() {
+    const idx = genStep - 1;
+    if (idx < 0 || idx >= promptData.steps.length) return null;
+    return promptData.steps[idx];
+  }
+
+  // Render probability bars
+  function renderProbs(stepData, chosenIdx) {
+    if (!stepData) { probContainer.innerHTML = ''; return; }
+    const tempProbs = applyTemperature(stepData.probs);
+    let html = '';
+    for (let i = 0; i < stepData.candidates.length; i++) {
+      const pct = (tempProbs[i] * 100).toFixed(1);
+      const isChosen = (i === chosenIdx);
+      html += '<div class="prob-bar-row' + (isChosen ? ' selected' : '') + '" data-idx="' + i + '">';
+      html += '<span class="prob-label">' + stepData.candidates[i] + '</span>';
+      html += '<div class="prob-track"><div class="prob-fill" style="width:' + pct + '%;background:' + PROB_COLORS[i] + '"></div></div>';
+      html += '<span class="prob-val">' + pct + '%</span>';
+      html += '</div>';
+    }
+    probContainer.innerHTML = html;
+
+    // Click to pick alternative
+    probContainer.querySelectorAll('.prob-bar-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const idx = parseInt(row.dataset.idx);
+        pickAlternative(idx);
+      });
+    });
+  }
+
+  // Pick an alternative word (branching)
+  function pickAlternative(idx) {
+    if (genStep <= 0) return;
+    const stepIdx = genStep - 1;
+    if (stepIdx >= promptData.steps.length) return;
+    const stepData = promptData.steps[stepIdx];
+    const word = stepData.candidates[idx];
+
+    // Replace last generated token
+    sequence[sequence.length - 1] = word;
+    const boxes = tokenRow.querySelectorAll('.token-box');
+    const lastBox = boxes[boxes.length - 1];
+    if (lastBox) lastBox.textContent = word;
+
+    renderProbs(stepData, idx);
+    renderHeatmap(stepData);
+    drawConnections();
+    renderMask();
+  }
+
+  // Render attention heatmap
+  function renderHeatmap(stepData) {
+    heatmapRow.innerHTML = '';
+    if (!stepData) return;
+    const attn = stepData.attention;
+    for (let i = 0; i < attn.length; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'hm-cell';
+      const bar = document.createElement('div');
+      bar.className = 'hm-bar';
+      const intensity = attn[i];
+      const r = Math.round(80 + intensity * 175);
+      const g = Math.round(80 + intensity * 100);
+      const b = Math.round(255 - intensity * 150);
+      bar.style.background = 'rgb(' + r + ',' + g + ',' + b + ')';
+      bar.title = sequence[i] + ': ' + (intensity * 100).toFixed(0) + '%';
+      const label = document.createElement('div');
+      label.className = 'hm-label';
+      label.textContent = sequence[i];
+      cell.appendChild(bar);
+      cell.appendChild(label);
+      heatmapRow.appendChild(cell);
+    }
+  }
+
+  // Render causal mask
+  function renderMask() {
+    const n = sequence.length;
+    if (n === 0) { maskContainer.innerHTML = ''; return; }
+    // Limit to last 10 tokens to keep it readable
+    const start = Math.max(0, n - 10);
+    const display = sequence.slice(start);
+    const dn = display.length;
+
+    let html = '<table class="mask"><tr><th></th>';
+    for (let c = 0; c < dn; c++) html += '<th class="col-h">' + display[c] + '</th>';
+    html += '</tr>';
+    for (let r = 0; r < dn; r++) {
+      html += '<tr><th>' + display[r] + '</th>';
+      for (let c = 0; c < dn; c++) {
+        const realR = start + r;
+        const realC = start + c;
+        const on = realC <= realR;
+        const isCurrentRow = (r === dn - 1);
+        let cls = on ? (isCurrentRow ? 'current-row' : 'on') : 'off';
+        html += '<td class="' + cls + '">' + (on ? '1' : '0') + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+    maskContainer.innerHTML = html;
+  }
+
+  // Main generate step
+  async function generate() {
+    if (animating) return;
+    if (genStep >= promptData.steps.length) {
+      btnGenerate.disabled = true;
+      return;
+    }
+    animating = true;
+    btnGenerate.disabled = true;
+
+    const stepData = promptData.steps[genStep];
+    const tempProbs = applyTemperature(stepData.probs);
+
+    // Determine which word to pick
+    let chosenIdx;
+    const T = getTemperature();
+    if (T <= 0.15) {
+      chosenIdx = stepData.default;
+    } else {
+      chosenIdx = sampleFromProbs(tempProbs);
+    }
+
+    const word = stepData.candidates[chosenIdx];
+    sequence.push(word);
+    genStep++;
+
+    // Show token
+    tokenRow.querySelectorAll('.token-box').forEach(b => {
+      b.classList.remove('highlight', 'cursor');
+    });
+    const box = addTokenBox(word, 'generated');
+    await sleep(150);
+    box.classList.add('highlight');
+
+    // Update displays
+    probTitle.textContent = 'Next Word Probabilities (Step ' + genStep + ')';
+    renderProbs(stepData, chosenIdx);
+    renderHeatmap(stepData);
+    renderMask();
+    drawConnections();
+
+    stepInfoEl.textContent = 'Step ' + genStep + ': model sees "' + sequence.join(' ') + '" -- predicted "' + word + '"';
+    clickHint.style.display = 'block';
+
+    await sleep(300);
+    box.classList.remove('highlight');
+
+    animating = false;
+    btnGenerate.disabled = genStep >= promptData.steps.length;
+    if (genStep >= promptData.steps.length) {
+      stepInfoEl.textContent = 'Generation complete! Final: "' + sequence.join(' ') + '"';
+    }
+  }
+
+  function resetAll() {
+    animating = false;
+    genStep = 0;
+    showPrompt();
+    probContainer.innerHTML = '';
+    heatmapRow.innerHTML = '';
+    maskContainer.innerHTML = '';
+    connCtx.clearRect(0, 0, connCanvas.width, connCanvas.height);
+    stepInfoEl.textContent = 'Select a prompt and press "Generate Next Word"';
+    probTitle.textContent = 'Next Word Probabilities';
+    clickHint.style.display = 'none';
+    btnGenerate.disabled = false;
+    renderMask();
+  }
+
+  btnGenerate.addEventListener('click', generate);
+  document.getElementById('btnReset').addEventListener('click', resetAll);
+  window.addEventListener('resize', () => {
+    drawConnections();
+  });
+
+  // Init
+  buildPromptSelector();
+  resetAll();
+})();
+</script>
+</body>
+</html>

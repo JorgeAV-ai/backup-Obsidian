@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 580" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="115%">
+      <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#00000020"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a7a9a"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#66bb6a"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef5350"/>
+    </marker>
+  </defs>
+
+  <text x="375" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#4a4a6a">Query Engine — Main Loop</text>
+
+  <!-- Step 1: User Input -->
+  <rect x="260" y="55" width="230" height="45" rx="22" fill="#e1f5fe" stroke="#4fc3f7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="375" y="83" text-anchor="middle" font-size="14" font-weight="bold" fill="#0277bd">User Input</text>
+  <line x1="375" y1="100" x2="375" y2="125" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 2: processUserInput -->
+  <rect x="235" y="130" width="280" height="45" rx="14" fill="#f3e5f5" stroke="#ce93d8" stroke-width="2" filter="url(#shadow)"/>
+  <text x="375" y="158" text-anchor="middle" font-size="13" fill="#6a1b9a">processUserInput() — Parse &amp; Validate</text>
+  <line x1="375" y1="175" x2="375" y2="200" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 3: System Prompt -->
+  <rect x="225" y="205" width="300" height="45" rx="14" fill="#fff9c4" stroke="#fff176" stroke-width="2" filter="url(#shadow)"/>
+  <text x="375" y="233" text-anchor="middle" font-size="13" fill="#f57f17">fetchSystemPromptParts() — Build Context</text>
+  <line x1="375" y1="250" x2="375" y2="275" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 4: query() Loop -->
+  <rect x="250" y="280" width="250" height="55" rx="14" fill="#e8eaf6" stroke="#9fa8da" stroke-width="2.5" filter="url(#shadow)"/>
+  <text x="375" y="303" text-anchor="middle" font-size="14" font-weight="bold" fill="#283593">query() Loop</text>
+  <text x="375" y="322" text-anchor="middle" font-size="11" fill="#3949ab">Model invocation (streaming)</text>
+
+  <!-- Decision diamond -->
+  <polygon points="375,360 445,400 375,440 305,400" fill="#fce4ec" stroke="#f48fb1" stroke-width="2" filter="url(#shadow)"/>
+  <text x="375" y="403" text-anchor="middle" font-size="12" font-weight="bold" fill="#c62828">Tool Call?</text>
+  <line x1="375" y1="335" x2="375" y2="360" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- YES branch (right) -->
+  <text x="460" y="393" font-size="12" font-weight="bold" fill="#66bb6a">Yes</text>
+  <line x1="445" y1="400" x2="510" y2="400" stroke="#66bb6a" stroke-width="2" marker-end="url(#arrowGreen)"/>
+
+  <!-- Tool execution box -->
+  <rect x="515" y="365" width="200" height="70" rx="14" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="615" y="390" text-anchor="middle" font-size="12" fill="#2e7d32">validateInput()</text>
+  <text x="615" y="407" text-anchor="middle" font-size="12" fill="#2e7d32">→ checkPermissions()</text>
+  <text x="615" y="424" text-anchor="middle" font-size="12" fill="#2e7d32">→ Tool.call()</text>
+
+  <!-- Loop back arrow from tool to query -->
+  <path d="M 715 400 Q 735 310 500 310" fill="none" stroke="#66bb6a" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrowGreen)"/>
+  <text x="720" y="350" font-size="10" fill="#66bb6a" transform="rotate(-90,720,350)">Result back</text>
+
+  <!-- NO branch (down) -->
+  <text x="385" y="458" font-size="12" font-weight="bold" fill="#ef5350">No</text>
+  <line x1="375" y1="440" x2="375" y2="475" stroke="#ef5350" stroke-width="2" marker-end="url(#arrowRed)"/>
+
+  <!-- Final response -->
+  <rect x="245" y="480" width="260" height="45" rx="14" fill="#e0f7fa" stroke="#80deea" stroke-width="2" filter="url(#shadow)"/>
+  <text x="375" y="508" text-anchor="middle" font-size="13" fill="#00695c">Final Response → UI Output</text>
+  <line x1="375" y1="525" x2="375" y2="550" stroke="#7a7a9a" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Transcript -->
+  <rect x="275" y="553" width="200" height="30" rx="10" fill="#f5f5f5" stroke="#bdbdbd" stroke-width="1.5"/>
+  <text x="375" y="573" text-anchor="middle" font-size="11" fill="#757575">recordTranscript() → JSONL</text>
+</svg>

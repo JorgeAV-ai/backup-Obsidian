@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoRA: Fine-Tuning Giants with a Tiny Budget</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:1.5rem 1rem .5rem;font-size:clamp(1.3rem,3vw,2rem);background:linear-gradient(135deg,#cba6f7,#89b4fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:#a6adc8;margin-bottom:1rem;font-size:.95rem}
+main{flex:1;max-width:1200px;width:100%;margin:0 auto;padding:0 1rem 1rem}
+.section{background:#313244;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #45475a}
+.section h2{font-size:1.1rem;margin-bottom:.8rem;color:#cba6f7}
+.section h3{font-size:.95rem;margin-bottom:.6rem;color:#89b4fa}
+
+/* Matrix visualization */
+.matrix-row{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:center}
+.matrix-container{text-align:center}
+.matrix-label{font-size:.75rem;margin-bottom:.4rem;color:#a6adc8;min-height:2.4rem}
+.matrix{display:inline-grid;gap:2px;padding:4px;border-radius:6px;background:#181825}
+.matrix .cell{width:clamp(18px,3vw,28px);height:clamp(18px,3vw,28px);border-radius:3px;transition:all .4s;font-size:.5rem;display:flex;align-items:center;justify-content:center}
+.cell.frozen{background:#45475a;color:#585b70}
+.cell.trainable{background:#a6e3a1;color:#1e1e2e}
+.cell.merged{background:#89b4fa;color:#1e1e2e}
+.cell.lighting{animation:lightup .6s ease-in-out infinite alternate}
+@keyframes lightup{0%{background:#a6e3a1;box-shadow:0 0 4px #a6e3a1}100%{background:#f9e2af;box-shadow:0 0 10px #f9e2af}}
+.op-symbol{font-size:2rem;color:#f9e2af;padding:0 .3rem;align-self:center}
+.eq-symbol{font-size:2rem;color:#89b4fa;padding:0 .3rem;align-self:center}
+
+/* Slider */
+.control-row{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:center;margin:.8rem 0}
+.control-row label{font-size:.85rem;color:#bac2de}
+input[type=range]{-webkit-appearance:none;background:#45475a;height:6px;border-radius:3px;outline:none;width:180px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#cba6f7;cursor:pointer}
+.stat-box{background:#181825;border-radius:8px;padding:.5rem .8rem;text-align:center;font-size:.8rem;border:1px solid #45475a}
+.stat-box .val{font-size:1.3rem;font-weight:700;color:#a6e3a1}
+
+/* Buttons */
+.btn{padding:.5rem 1.2rem;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s}
+.btn-primary{background:#cba6f7;color:#1e1e2e}.btn-primary:hover{background:#b490e0}
+.btn-secondary{background:#45475a;color:#cdd6f4}.btn-secondary:hover{background:#585b70}
+.btn-active{background:#a6e3a1;color:#1e1e2e}
+
+/* Adapters */
+.adapters{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin:.8rem 0}
+.adapter-card{background:#181825;border:2px solid #45475a;border-radius:10px;padding:.6rem 1rem;cursor:pointer;transition:all .3s;text-align:center;min-width:100px}
+.adapter-card:hover{border-color:#cba6f7}
+.adapter-card.active{border-color:#a6e3a1;box-shadow:0 0 12px rgba(166,227,161,.3)}
+.adapter-card .icon{font-size:1.8rem}
+.adapter-card .name{font-size:.75rem;margin-top:.2rem;color:#bac2de}
+
+/* Cost comparison */
+.cost-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-top:.6rem}
+.cost-card{background:#181825;border-radius:8px;padding:.8rem;text-align:center;border:1px solid #45475a}
+.cost-card.expensive{border-color:#f38ba8}.cost-card.cheap{border-color:#a6e3a1}
+.cost-card .price{font-size:1.4rem;font-weight:700;margin:.3rem 0}
+.cost-card.expensive .price{color:#f38ba8}
+.cost-card.cheap .price{color:#a6e3a1}
+.cost-card .hw{font-size:.75rem;color:#a6adc8}
+
+/* Animation status */
+.status-bar{text-align:center;padding:.4rem;border-radius:6px;font-size:.85rem;margin:.6rem 0;min-height:2rem}
+.status-bar.training{background:rgba(249,226,175,.15);color:#f9e2af}
+.status-bar.merged{background:rgba(137,180,250,.15);color:#89b4fa}
+.status-bar.idle{background:rgba(166,227,161,.1);color:#a6e3a1}
+
+footer{text-align:center;padding:1rem;color:#585b70;font-size:.75rem;border-top:1px solid #313244}
+
+@media(max-width:600px){
+  .matrix-row{flex-direction:column}
+  .cost-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<h1>LoRA: Fine-Tuning Giants with a Tiny Budget</h1>
+<p class="subtitle">Real Example: Adapting GPT for Medical Text</p>
+
+<main>
+<!-- Matrix Visualization -->
+<div class="section">
+  <h2>How LoRA Works</h2>
+  <div class="matrix-row">
+    <div class="matrix-container">
+      <div class="matrix-label">Original GPT weights: 175 BILLION params<br>FROZEN &#10052;&#65039;</div>
+      <div class="matrix" id="matW" style="grid-template-columns:repeat(8,1fr)"></div>
+    </div>
+    <div class="op-symbol">+</div>
+    <div class="matrix-container">
+      <div class="matrix-label" id="labelB">LoRA B (8&times;<span id="rValB">2</span>)<br>TRAINABLE &#128293;</div>
+      <div class="matrix" id="matB"></div>
+    </div>
+    <div class="op-symbol">&times;</div>
+    <div class="matrix-container">
+      <div class="matrix-label" id="labelA">LoRA A (<span id="rValA">2</span>&times;8)<br>TRAINABLE &#128293;</div>
+      <div class="matrix" id="matA"></div>
+    </div>
+  </div>
+
+  <div class="control-row">
+    <label>Rank (r): <strong id="rankDisplay">2</strong></label>
+    <input type="range" id="rankSlider" min="0" max="5" value="1">
+    <div class="stat-box">Trainable params: <span class="val" id="paramCount">32</span></div>
+    <div class="stat-box">% of total: <span class="val" id="paramPct">0.00002%</span></div>
+  </div>
+
+  <div id="statusBar" class="status-bar idle">Ready &mdash; adjust rank or start training</div>
+
+  <div class="control-row">
+    <button class="btn btn-primary" id="btnTrain" onclick="startTraining()">&#128293; Train for Medical Text</button>
+    <button class="btn btn-secondary" id="btnMerge" onclick="mergeWeights()" disabled>&#128279; Merge into Model</button>
+    <button class="btn btn-secondary" onclick="resetAll()">&#8635; Reset</button>
+  </div>
+</div>
+
+<!-- Multiple Adapters -->
+<div class="section">
+  <h2>Swap Adapters Instantly</h2>
+  <p style="font-size:.85rem;color:#a6adc8;margin-bottom:.6rem">One base model, multiple specializations &mdash; swap in milliseconds:</p>
+  <div class="adapters" id="adapterList">
+    <div class="adapter-card" data-adapter="medical" onclick="selectAdapter(this)">
+      <div class="icon">&#127973;</div><div class="name">Medical</div>
+    </div>
+    <div class="adapter-card" data-adapter="legal" onclick="selectAdapter(this)">
+      <div class="icon">&#9878;&#65039;</div><div class="name">Legal</div>
+    </div>
+    <div class="adapter-card" data-adapter="code" onclick="selectAdapter(this)">
+      <div class="icon">&#128187;</div><div class="name">Code</div>
+    </div>
+  </div>
+  <div id="adapterResult" class="status-bar idle">Select an adapter to see the result</div>
+</div>
+
+<!-- Cost Comparison -->
+<div class="section">
+  <h2>Cost Comparison</h2>
+  <div class="cost-grid">
+    <div class="cost-card expensive">
+      <h3>Full Fine-Tuning</h3>
+      <div class="price">$10,000+</div>
+      <div class="hw">8&times; A100 GPUs (640 GB VRAM)</div>
+      <div class="hw" style="margin-top:.3rem">Days of training &bull; All 175B params updated</div>
+    </div>
+    <div class="cost-card cheap">
+      <h3>LoRA Fine-Tuning</h3>
+      <div class="price">~$50</div>
+      <div class="hw">1&times; RTX 4090 (24 GB VRAM)</div>
+      <div class="hw" style="margin-top:.3rem">Hours of training &bull; Only ~0.01% params updated</div>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const RANKS = [1,2,4,8,16,32];
+const DIM = 8;
+let currentRank = 2;
+let state = 'idle'; // idle, training, trained, merged
+
+function buildMatrix(id, rows, cols, cls) {
+  const el = document.getElementById(id);
+  el.style.gridTemplateColumns = `repeat(${cols},1fr)`;
+  el.innerHTML = '';
+  for (let i = 0; i < rows * cols; i++) {
+    const c = document.createElement('div');
+    c.className = 'cell ' + cls;
+    el.appendChild(c);
+  }
+}
+
+function updateMatrices() {
+  const r = currentRank;
+  buildMatrix('matW', DIM, DIM, state === 'merged' ? 'merged' : 'frozen');
+  buildMatrix('matB', DIM, r, state === 'training' ? 'lighting' : (state === 'merged' ? 'merged' : 'trainable'));
+  buildMatrix('matA', r, DIM, state === 'training' ? 'lighting' : (state === 'merged' ? 'merged' : 'trainable'));
+  document.getElementById('rValB').textContent = r;
+  document.getElementById('rValA').textContent = r;
+  document.getElementById('rankDisplay').textContent = r;
+  const params = DIM * r + r * DIM;
+  document.getElementById('paramCount').textContent = params;
+  const pct = (params / 175000000000 * 100);
+  document.getElementById('paramPct').textContent = pct < 0.0001 ? pct.toExponential(1) + '%' : pct.toFixed(6) + '%';
+}
+
+document.getElementById('rankSlider').addEventListener('input', function() {
+  currentRank = RANKS[this.value];
+  if (state === 'training') { state = 'idle'; clearInterval(window._trainInterval); }
+  if (state !== 'merged') state = 'idle';
+  updateMatrices();
+  updateStatus();
+});
+
+function updateStatus() {
+  const bar = document.getElementById('statusBar');
+  if (state === 'idle') { bar.className = 'status-bar idle'; bar.textContent = 'Ready \u2014 adjust rank or start training'; }
+  else if (state === 'trained') { bar.className = 'status-bar training'; bar.textContent = 'Training complete! LoRA adapters are ready. Click Merge to apply.'; }
+  else if (state === 'merged') { bar.className = 'status-bar merged'; bar.textContent = 'Merged! Now your model speaks medical! And it only cost training ' + document.getElementById('paramPct').textContent + ' of params.'; }
+  document.getElementById('btnMerge').disabled = state !== 'trained';
+}
+
+let trainStep = 0;
+function startTraining() {
+  if (state === 'training' || state === 'merged') return;
+  state = 'training';
+  trainStep = 0;
+  updateMatrices();
+  const bar = document.getElementById('statusBar');
+  bar.className = 'status-bar training';
+  const msgs = ['Epoch 1/3 \u2014 Learning medical terminology...','Epoch 2/3 \u2014 Understanding clinical notes...','Epoch 3/3 \u2014 Mastering diagnostic language...'];
+  bar.textContent = msgs[0];
+  window._trainInterval = setInterval(() => {
+    trainStep++;
+    if (trainStep < 3) bar.textContent = msgs[trainStep];
+    else { clearInterval(window._trainInterval); state = 'trained'; updateMatrices(); updateStatus(); }
+  }, 1200);
+}
+
+function mergeWeights() {
+  if (state !== 'trained') return;
+  state = 'merged';
+  updateMatrices();
+  updateStatus();
+}
+
+function resetAll() {
+  if (window._trainInterval) clearInterval(window._trainInterval);
+  state = 'idle';
+  updateMatrices();
+  updateStatus();
+}
+
+// Adapters
+const adapterTexts = {
+  medical: {text: 'Base GPT + Medical LoRA loaded \u2014 "The patient presents with acute myocardial infarction requiring immediate PCI..."', color: '#a6e3a1'},
+  legal: {text: 'Base GPT + Legal LoRA loaded \u2014 "Pursuant to Section 14(a) of the Securities Exchange Act, the defendant..."', color: '#89b4fa'},
+  code: {text: 'Base GPT + Code LoRA loaded \u2014 "def merge_sort(arr): if len(arr) <= 1: return arr ..."', color: '#cba6f7'}
+};
+function selectAdapter(el) {
+  document.querySelectorAll('.adapter-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const key = el.dataset.adapter;
+  const res = document.getElementById('adapterResult');
+  res.className = 'status-bar idle';
+  res.style.color = adapterTexts[key].color;
+  res.textContent = adapterTexts[key].text;
+}
+
+// Init
+updateMatrices();
+updateStatus();
+</script>
+</body>
+</html>

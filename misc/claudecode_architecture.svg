@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="115%">
+      <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#00000020"/>
+    </filter>
+  </defs>
+
+  <!-- Title -->
+  <text x="400" y="40" text-anchor="middle" font-size="22" font-weight="bold" fill="#4a4a6a">Claude Code — 4 Architecture Pillars</text>
+
+  <!-- Central hub -->
+  <circle cx="400" cy="250" r="60" fill="#e8dff5" stroke="#b8a9d4" stroke-width="2" filter="url(#shadow)"/>
+  <text x="400" y="245" text-anchor="middle" font-size="13" font-weight="bold" fill="#5b4a8a">Claude</text>
+  <text x="400" y="263" text-anchor="middle" font-size="13" font-weight="bold" fill="#5b4a8a">Code</text>
+
+  <!-- Pillar 1: Query Engine (top-left) -->
+  <rect x="50" y="80" width="200" height="120" rx="18" fill="#fce4ec" stroke="#f48fb1" stroke-width="2" filter="url(#shadow)"/>
+  <text x="150" y="115" text-anchor="middle" font-size="15" font-weight="bold" fill="#c62828">Query Engine</text>
+  <text x="150" y="140" text-anchor="middle" font-size="11" fill="#6a3a3a">Orchestration loop</text>
+  <text x="150" y="157" text-anchor="middle" font-size="11" fill="#6a3a3a">Conversation state</text>
+  <text x="150" y="174" text-anchor="middle" font-size="11" fill="#6a3a3a">Context management</text>
+  <line x1="250" y1="155" x2="342" y2="230" stroke="#f48fb1" stroke-width="2" stroke-dasharray="6,3"/>
+
+  <!-- Pillar 2: Tool System (top-right) -->
+  <rect x="550" y="80" width="200" height="120" rx="18" fill="#e3f2fd" stroke="#90caf9" stroke-width="2" filter="url(#shadow)"/>
+  <text x="650" y="115" text-anchor="middle" font-size="15" font-weight="bold" fill="#1565c0">Tool System</text>
+  <text x="650" y="140" text-anchor="middle" font-size="11" fill="#3a4a6a">File I/O, Bash, LSP, MCP</text>
+  <text x="650" y="157" text-anchor="middle" font-size="11" fill="#3a4a6a">Validation + Permissions</text>
+  <text x="650" y="174" text-anchor="middle" font-size="11" fill="#3a4a6a">Strongly typed (Zod)</text>
+  <line x1="550" y1="155" x2="458" y2="230" stroke="#90caf9" stroke-width="2" stroke-dasharray="6,3"/>
+
+  <!-- Pillar 3: REPL & UI (bottom-left) -->
+  <rect x="50" y="310" width="200" height="120" rx="18" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="150" y="345" text-anchor="middle" font-size="15" font-weight="bold" fill="#2e7d32">REPL &amp; UI</text>
+  <text x="150" y="370" text-anchor="middle" font-size="11" fill="#3a6a3a">Terminal with React + Ink</text>
+  <text x="150" y="387" text-anchor="middle" font-size="11" fill="#3a6a3a">Interactive diff views</text>
+  <text x="150" y="404" text-anchor="middle" font-size="11" fill="#3a6a3a">Real-time streaming</text>
+  <line x1="250" y1="355" x2="342" y2="272" stroke="#a5d6a7" stroke-width="2" stroke-dasharray="6,3"/>
+
+  <!-- Pillar 4: Bridge & Remote (bottom-right) -->
+  <rect x="550" y="310" width="200" height="120" rx="18" fill="#fff3e0" stroke="#ffcc80" stroke-width="2" filter="url(#shadow)"/>
+  <text x="650" y="345" text-anchor="middle" font-size="15" font-weight="bold" fill="#e65100">Bridge &amp; Remote</text>
+  <text x="650" y="370" text-anchor="middle" font-size="11" fill="#6a4a2a">Remote session control</text>
+  <text x="650" y="387" text-anchor="middle" font-size="11" fill="#6a4a2a">IDE integration</text>
+  <text x="650" y="404" text-anchor="middle" font-size="11" fill="#6a4a2a">Network synchronization</text>
+  <line x1="550" y1="355" x2="458" y2="272" stroke="#ffcc80" stroke-width="2" stroke-dasharray="6,3"/>
+
+  <!-- Footer -->
+  <text x="400" y="480" text-anchor="middle" font-size="11" fill="#888">Source: deepwiki.com/instructkr/claude-code</text>
+</svg>

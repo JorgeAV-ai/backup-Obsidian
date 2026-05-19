@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adam Optimizer: Finding the Lowest Valley</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:20px;font-size:1.6rem;color:#cba6f7;letter-spacing:1px}
+.container{display:flex;flex-wrap:wrap;gap:16px;padding:0 20px 20px;flex:1;justify-content:center;align-items:flex-start}
+.canvas-wrap{position:relative;background:#181825;border-radius:12px;border:1px solid #313244;overflow:hidden;flex:1;min-width:400px;max-width:700px}
+canvas{display:block;width:100%;cursor:crosshair}
+.panel{background:#181825;border-radius:12px;border:1px solid #313244;padding:20px;width:320px;display:flex;flex-direction:column;gap:14px}
+.panel h2{font-size:1rem;color:#89b4fa;margin-bottom:4px}
+.controls label{display:flex;justify-content:space-between;align-items:center;font-size:.85rem;margin-bottom:6px}
+.controls input[type=range]{width:160px;accent-color:#cba6f7}
+.btn{background:#cba6f7;color:#1e1e2e;border:none;padding:10px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:.95rem;transition:background .2s}
+.btn:hover{background:#b4befe}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.85rem}
+.legend span{display:flex;align-items:center;gap:5px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.step-counts{font-size:.9rem;padding:8px 12px;background:#11111b;border-radius:8px;line-height:1.7}
+.info-table{font-size:.78rem;width:100%;border-collapse:collapse}
+.info-table th,.info-table td{padding:4px 6px;text-align:left;border-bottom:1px solid #313244}
+.info-table th{color:#89b4fa;font-weight:600}
+.toggle-row{display:flex;align-items:center;gap:10px;font-size:.85rem}
+.toggle-row input[type=checkbox]{accent-color:#a6e3a1;width:16px;height:16px}
+footer{text-align:center;padding:16px;font-size:.75rem;color:#585b70;border-top:1px solid #313244}
+@media(max-width:800px){.container{flex-direction:column;align-items:center}.panel{width:100%;max-width:500px}.canvas-wrap{max-width:100%}}
+</style>
+</head>
+<body>
+<h1>Adam Optimizer: Finding the Lowest Valley</h1>
+<div class="container">
+  <div class="canvas-wrap">
+    <canvas id="cv"></canvas>
+  </div>
+  <div class="panel">
+    <h2>Controls</h2>
+    <div class="controls">
+      <label>Speed <span id="speedVal">1.0x</span><input type="range" id="speed" min="0.2" max="5" step="0.1" value="1"></label>
+      <label>Learning Rate <span id="lrVal">0.05</span><input type="range" id="lr" min="0.001" max="0.3" step="0.001" value="0.05"></label>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="playBtn">&#9654; Play</button>
+      <button class="btn" id="resetBtn">Reset</button>
+    </div>
+    <div class="toggle-row">
+      <input type="checkbox" id="adamw"><label for="adamw">Enable AdamW (weight decay toward origin)</label>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:#f38ba8"></span> SGD</span>
+      <span><span class="dot" style="background:#f9e2af"></span> SGD+Momentum</span>
+      <span><span class="dot" style="background:#a6e3a1"></span> Adam</span>
+    </div>
+    <div class="step-counts" id="steps">Click Play to start</div>
+    <h2>Live Values (Adam)</h2>
+    <table class="info-table">
+      <tr><th>Property</th><th>Value</th></tr>
+      <tr><td>Position (x, y)</td><td id="iv_pos">-</td></tr>
+      <tr><td>Gradient (gx, gy)</td><td id="iv_grad">-</td></tr>
+      <tr><td>Momentum m</td><td id="iv_m">-</td></tr>
+      <tr><td>Velocity v</td><td id="iv_v">-</td></tr>
+      <tr><td>Adapted LR</td><td id="iv_alr">-</td></tr>
+    </table>
+    <p style="font-size:.78rem;color:#585b70;margin-top:4px">Click anywhere on the map to set a new starting point.</p>
+  </div>
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const speedSlider=document.getElementById('speed'),lrSlider=document.getElementById('lr');
+const speedVal=document.getElementById('speedVal'),lrVal=document.getElementById('lrVal');
+const playBtn=document.getElementById('playBtn'),resetBtn=document.getElementById('resetBtn');
+const adamwCheck=document.getElementById('adamw');
+const stepsDiv=document.getElementById('steps');
+
+let W,H,scale;
+function resize(){
+  const r=cv.parentElement.getBoundingClientRect();
+  W=Math.round(r.width);H=Math.round(Math.min(r.width,560));
+  cv.width=W;cv.height=H;
+  scale=W/6;
+}
+resize();
+window.addEventListener('resize',()=>{resize();drawAll();});
+
+// Loss landscape: Rosenbrock-like with clear minimum at (1,1)
+function loss(x,y){return 0.5*(1-x)**2+2*(y-x*x)**2+0.05*((x-1)**2+(y-1)**2);}
+function grad(x,y){
+  const dx=-(1-x)+2*2*(y-x*x)*(-2*x)+0.05*2*(x-1);
+  const dy=2*2*(y-x*x)+0.05*2*(y-1);
+  return[dx,dy];
+}
+
+// Map coords: center is (1.5, 1.5), range roughly -1.5 to 4.5
+const ox=1.5,oy=1.5;
+function toCanvas(x,y){return[(x-ox+3)*scale/6*W/scale*scale/W*scale,(H-(y-oy+3)*scale/6*H/scale*scale/H*scale)];}
+// simpler:
+function w2c(x,y){return[((x+1.5)/6)*W, H-((y+1.5)/6)*H];}
+function c2w(cx,cy){return[(cx/W)*6-1.5, (1-cy/H)*6-1.5];}
+
+// Draw contour
+function drawContour(){
+  const img=ctx.createImageData(W,H);
+  let maxL=0;
+  const vals=new Float32Array(W*H);
+  for(let py=0;py<H;py++){for(let px=0;px<W;px++){
+    const[wx,wy]=c2w(px,py);
+    const v=loss(wx,wy);
+    vals[py*W+px]=v;
+    if(v>maxL)maxL=v;
+  }}
+  maxL=Math.min(maxL,20);
+  for(let py=0;py<H;py++){for(let px=0;px<W;px++){
+    const v=Math.min(vals[py*W+px],maxL)/maxL;
+    const i=(py*W+px)*4;
+    // dark blue to purple to bright
+    const t=Math.pow(v,0.4);
+    img.data[i]=Math.round(30+t*100);
+    img.data[i+1]=Math.round(30+80*(1-t));
+    img.data[i+2]=Math.round(60+t*120);
+    img.data[i+3]=255;
+  }}
+  ctx.putImageData(img,0,0);
+  // contour lines
+  ctx.strokeStyle='rgba(205,214,244,0.12)';
+  ctx.lineWidth=1;
+  for(let level=0.1;level<15;level+=0.5){
+    ctx.beginPath();
+    let started=false;
+    for(let angle=0;angle<Math.PI*2;angle+=0.02){
+      // march along radial from min
+      for(let r=0.05;r<5;r+=0.05){
+        const wx=1+r*Math.cos(angle),wy=1+r*Math.sin(angle);
+        if(Math.abs(loss(wx,wy)-level)<0.15){
+          const[cx,cy]=w2c(wx,wy);
+          if(!started){ctx.moveTo(cx,cy);started=true;}
+          else ctx.lineTo(cx,cy);
+          break;
+        }
+      }
+    }
+    ctx.stroke();
+  }
+  // mark minimum
+  const[mx,my]=w2c(1,1);
+  ctx.beginPath();ctx.arc(mx,my,6,0,Math.PI*2);
+  ctx.fillStyle='rgba(166,227,161,0.4)';ctx.fill();
+  ctx.strokeStyle='#a6e3a1';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#cdd6f4';ctx.font='12px sans-serif';ctx.fillText('min',mx+10,my+4);
+}
+
+let startX=-0.5,startY=3.5;
+const minX=1,minY=1,threshold=0.15;
+
+class SGDOptim{
+  constructor(x,y,lr){this.x=x;this.y=y;this.lr=lr;this.path=[[x,y]];this.done=false;this.steps=0;}
+  step(){
+    if(this.done)return;
+    const[gx,gy]=grad(this.x,this.y);
+    this.x-=this.lr*gx;this.y-=this.lr*gy;
+    this.path.push([this.x,this.y]);this.steps++;
+    if(Math.hypot(this.x-minX,this.y-minY)<threshold)this.done=true;
+    if(this.steps>500||Math.abs(this.x)>10||Math.abs(this.y)>10)this.done=true;
+  }
+}
+class MomentumOptim{
+  constructor(x,y,lr){this.x=x;this.y=y;this.lr=lr;this.vx=0;this.vy=0;this.mu=0.9;this.path=[[x,y]];this.done=false;this.steps=0;}
+  step(){
+    if(this.done)return;
+    const[gx,gy]=grad(this.x,this.y);
+    this.vx=this.mu*this.vx+gx;this.vy=this.mu*this.vy+gy;
+    this.x-=this.lr*this.vx;this.y-=this.lr*this.vy;
+    this.path.push([this.x,this.y]);this.steps++;
+    if(Math.hypot(this.x-minX,this.y-minY)<threshold)this.done=true;
+    if(this.steps>500||Math.abs(this.x)>10||Math.abs(this.y)>10)this.done=true;
+  }
+}
+class AdamOptim{
+  constructor(x,y,lr){
+    this.x=x;this.y=y;this.lr=lr;
+    this.mx=0;this.my_=0;this.vx=0;this.vy=0;
+    this.b1=0.9;this.b2=0.999;this.eps=1e-8;this.t=0;
+    this.path=[[x,y]];this.done=false;this.steps=0;
+    this.lastGrad=[0,0];this.lastM=[0,0];this.lastV=[0,0];this.lastALR=0;
+    this.wd=0;
+  }
+  step(){
+    if(this.done)return;
+    this.t++;
+    const[gx,gy]=grad(this.x,this.y);
+    this.lastGrad=[gx,gy];
+    this.mx=this.b1*this.mx+(1-this.b1)*gx;
+    this.my_=this.b1*this.my_+(1-this.b1)*gy;
+    this.vx=this.b2*this.vx+(1-this.b2)*gx*gx;
+    this.vy=this.b2*this.vy+(1-this.b2)*gy*gy;
+    const mhx=this.mx/(1-Math.pow(this.b1,this.t));
+    const mhy=this.my_/(1-Math.pow(this.b1,this.t));
+    const vhx=this.vx/(1-Math.pow(this.b2,this.t));
+    const vhy=this.vy/(1-Math.pow(this.b2,this.t));
+    this.lastM=[mhx,mhy];this.lastV=[vhx,vhy];
+    const alrx=this.lr/(Math.sqrt(vhx)+this.eps);
+    const alry=this.lr/(Math.sqrt(vhy)+this.eps);
+    this.lastALR=(alrx+alry)/2;
+    this.x-=alrx*mhx+this.wd*this.x;
+    this.y-=alry*mhy+this.wd*this.y;
+    this.path.push([this.x,this.y]);this.steps++;
+    if(Math.hypot(this.x-minX,this.y-minY)<threshold)this.done=true;
+    if(this.steps>500||Math.abs(this.x)>10||Math.abs(this.y)>10)this.done=true;
+  }
+}
+
+let sgd,mom,adam,animating=false,animFrame=0,frameId;
+
+function initOptimizers(){
+  const lr=parseFloat(lrSlider.value);
+  sgd=new SGDOptim(startX,startY,lr);
+  mom=new MomentumOptim(startX,startY,lr);
+  adam=new AdamOptim(startX,startY,lr);
+  adam.wd=adamwCheck.checked?0.01:0;
+  animFrame=0;
+}
+initOptimizers();
+
+function drawPath(path,color,upTo){
+  if(path.length<2)return;
+  const n=Math.min(upTo,path.length);
+  ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.globalAlpha=0.85;
+  ctx.beginPath();
+  const[sx,sy]=w2c(path[0][0],path[0][1]);
+  ctx.moveTo(sx,sy);
+  for(let i=1;i<n;i++){const[cx,cy]=w2c(path[i][0],path[i][1]);ctx.lineTo(cx,cy);}
+  ctx.stroke();
+  ctx.globalAlpha=1;
+  // head
+  if(n>0){
+    const[hx,hy]=w2c(path[n-1][0],path[n-1][1]);
+    ctx.beginPath();ctx.arc(hx,hy,5,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+  }
+}
+
+function drawStartPoint(){
+  const[sx,sy]=w2c(startX,startY);
+  ctx.beginPath();ctx.arc(sx,sy,7,0,Math.PI*2);
+  ctx.strokeStyle='#f5c2e7';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#cdd6f4';ctx.font='12px sans-serif';ctx.fillText('start',sx+10,sy+4);
+}
+
+function updateInfo(){
+  const a=adam;
+  document.getElementById('iv_pos').textContent=`(${a.x.toFixed(4)}, ${a.y.toFixed(4)})`;
+  document.getElementById('iv_grad').textContent=`(${a.lastGrad[0].toFixed(4)}, ${a.lastGrad[1].toFixed(4)})`;
+  document.getElementById('iv_m').textContent=`(${a.lastM[0].toFixed(4)}, ${a.lastM[1].toFixed(4)})`;
+  document.getElementById('iv_v').textContent=`(${a.lastV[0].toFixed(4)}, ${a.lastV[1].toFixed(4)})`;
+  document.getElementById('iv_alr').textContent=a.lastALR.toFixed(6);
+  const s1=sgd.done?sgd.steps:'...', s2=mom.done?mom.steps:'...', s3=adam.done?adam.steps:'...';
+  const div=sgd.steps>500||Math.abs(sgd.x)>10;
+  stepsDiv.innerHTML=`<span style="color:#f38ba8">SGD: ${div&&!sgd.done?'DIVERGED':s1} steps</span> | <span style="color:#f9e2af">Momentum: ${mom.steps>500&&!mom.done?'DIVERGED':s2} steps</span> | <span style="color:#a6e3a1">Adam: ${adam.steps>500&&!adam.done?'DIVERGED':s3} steps</span>`;
+}
+
+function drawAll(){
+  drawContour();
+  drawStartPoint();
+  const n=animFrame;
+  drawPath(sgd.path,'#f38ba8',n);
+  drawPath(mom.path,'#f9e2af',n);
+  drawPath(adam.path,'#a6e3a1',n);
+  updateInfo();
+}
+
+function runAllSteps(){
+  for(let i=0;i<500;i++){sgd.step();mom.step();adam.step();}
+}
+
+function animate(){
+  const spd=parseFloat(speedSlider.value);
+  const stepsPerFrame=Math.max(1,Math.round(spd*2));
+  for(let i=0;i<stepsPerFrame;i++){sgd.step();mom.step();adam.step();}
+  animFrame+=stepsPerFrame;
+  drawAll();
+  if(!sgd.done||!mom.done||!adam.done){
+    frameId=requestAnimationFrame(animate);
+  }else{
+    animating=false;
+    playBtn.textContent='\u25B6 Play';
+  }
+}
+
+playBtn.addEventListener('click',()=>{
+  if(animating){animating=false;cancelAnimationFrame(frameId);playBtn.textContent='\u25B6 Play';return;}
+  if(sgd.done&&mom.done&&adam.done){initOptimizers();}
+  animating=true;playBtn.textContent='\u23F8 Pause';
+  animate();
+});
+
+resetBtn.addEventListener('click',()=>{
+  if(animating){animating=false;cancelAnimationFrame(frameId);}
+  playBtn.textContent='\u25B6 Play';
+  initOptimizers();drawAll();
+});
+
+speedSlider.addEventListener('input',()=>{speedVal.textContent=parseFloat(speedSlider.value).toFixed(1)+'x';});
+lrSlider.addEventListener('input',()=>{
+  lrVal.textContent=parseFloat(lrSlider.value).toFixed(3);
+  if(!animating){initOptimizers();drawAll();}
+});
+adamwCheck.addEventListener('change',()=>{if(!animating){initOptimizers();drawAll();}});
+
+cv.addEventListener('click',(e)=>{
+  const rect=cv.getBoundingClientRect();
+  const cx=(e.clientX-rect.left)/(rect.width)*W;
+  const cy=(e.clientY-rect.top)/(rect.height)*H;
+  [startX,startY]=c2w(cx,cy);
+  if(animating){animating=false;cancelAnimationFrame(frameId);playBtn.textContent='\u25B6 Play';}
+  initOptimizers();drawAll();
+});
+
+drawAll();
+</script>
+</body>
+</html>

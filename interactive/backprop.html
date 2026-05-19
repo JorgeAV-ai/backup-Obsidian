@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backpropagation: How Neural Networks Learn</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:1.5rem;font-size:1.8rem;background:linear-gradient(135deg,#89b4fa,#cba6f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+h2{color:#89b4fa;font-size:1.1rem;margin-bottom:.8rem}
+.container{max-width:1100px;margin:0 auto;padding:0 1.5rem 2rem;flex:1;width:100%}
+.card{background:#313244;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #45475a}
+.flow{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.5rem;font-size:1rem;margin:1rem 0}
+.flow-box{background:#45475a;border-radius:8px;padding:.6rem 1rem;text-align:center;transition:all .4s;position:relative;min-width:80px}
+.flow-box.active{transform:scale(1.08);box-shadow:0 0 16px rgba(137,180,250,.4)}
+.flow-box.input{border:2px solid #89b4fa;color:#89b4fa}
+.flow-box.weight{border:2px solid #cba6f7;color:#cba6f7}
+.flow-box.output{border:2px solid #a6e3a1;color:#a6e3a1}
+.flow-box.loss{border:2px solid #f38ba8;color:#f38ba8}
+.flow-box.grad{border:2px solid #fab387;color:#fab387}
+.arrow{font-size:1.4rem;color:#6c7086}
+.arrow.back{color:#fab387}
+.controls{display:flex;flex-wrap:wrap;gap:.8rem;align-items:center;margin:1rem 0}
+.btn{background:#89b4fa;color:#1e1e2e;border:none;border-radius:8px;padding:.6rem 1.2rem;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s}
+.btn:hover{opacity:.85;transform:translateY(-1px)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn.secondary{background:#cba6f7}
+.btn.accent{background:#a6e3a1}
+.btn.warn{background:#f38ba8}
+.slider-group{display:flex;align-items:center;gap:.5rem}
+.slider-group label{font-size:.85rem;color:#a6adc8}
+.slider-group input[type=range]{width:140px;accent-color:#cba6f7}
+.val{font-weight:700;color:#cba6f7;font-size:.9rem;min-width:60px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.8rem;margin:1rem 0}
+.stat{background:#45475a;border-radius:8px;padding:.8rem;text-align:center}
+.stat .num{font-size:1.6rem;font-weight:700}
+.stat .label{font-size:.75rem;color:#a6adc8;margin-top:.2rem}
+.stat.blue .num{color:#89b4fa}
+.stat.purple .num{color:#cba6f7}
+.stat.green .num{color:#a6e3a1}
+.stat.red .num{color:#f38ba8}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem}
+@media(max-width:700px){.charts{grid-template-columns:1fr}}
+canvas{background:#181825;border-radius:8px;width:100%;height:220px}
+.explanation{background:#181825;border-radius:8px;padding:1rem;margin:.8rem 0;font-size:.9rem;line-height:1.6;color:#bac2de;border-left:3px solid #89b4fa}
+.two-layer .flow{flex-direction:column;gap:.3rem}
+.two-layer .flow-row{display:flex;align-items:center;justify-content:center;gap:.5rem;flex-wrap:wrap}
+footer{text-align:center;padding:1.2rem;color:#6c7086;font-size:.8rem;border-top:1px solid #313244;margin-top:auto}
+</style>
+</head>
+<body>
+<h1>Backpropagation: How Neural Networks Learn</h1>
+<div class="container">
+
+<div class="card">
+<h2>The Problem: Predict house price from size</h2>
+<div class="explanation">
+A house of <strong>100 m&sup2;</strong> costs <strong>150k&euro;</strong>. Our network has one weight <em>w</em> that multiplies the input to produce a prediction. We start with <em>w&nbsp;=&nbsp;0.5</em>, so prediction = 50k&euro; &mdash; way too low! Backpropagation will adjust <em>w</em> until the prediction matches reality.
+</div>
+</div>
+
+<div class="card" id="single-layer">
+<h2>Forward &amp; Backward Pass (1 Layer)</h2>
+<div class="flow" id="flow-forward">
+<div class="flow-box input" id="fb-input">Input<br><strong id="fb-input-val">100</strong></div>
+<div class="arrow">&rarr;</div>
+<div class="flow-box weight" id="fb-weight">&times; w<br><strong id="fb-weight-val">0.5000</strong></div>
+<div class="arrow">&rarr;</div>
+<div class="flow-box output" id="fb-output">Prediction<br><strong id="fb-output-val">50.00</strong></div>
+<div class="arrow">&rarr;</div>
+<div class="flow-box loss" id="fb-loss">Loss (MSE)<br><strong id="fb-loss-val">10000.00</strong></div>
+</div>
+<div class="flow" id="flow-backward" style="display:none">
+<div class="flow-box grad" id="fb-grad-w">&part;L/&part;w<br><strong id="fb-grad-val">-20000</strong></div>
+<div class="arrow back">&larr;</div>
+<div class="flow-box loss">Loss<br><strong id="fb-loss2">10000</strong></div>
+</div>
+<div class="explanation" id="step-explain">
+Click <strong>Backward Pass</strong> to compute the gradient, then <strong>Update Weight</strong> to apply the learning rate.
+</div>
+
+<div class="controls">
+<button class="btn" id="btn-backward" onclick="doBackward()">Backward Pass</button>
+<button class="btn secondary" id="btn-update" onclick="doUpdate()" disabled>Update Weight</button>
+<button class="btn accent" id="btn-train" onclick="toggleTrain()">Train (auto)</button>
+<button class="btn warn" id="btn-reset" onclick="doReset()">Reset</button>
+</div>
+<div class="controls">
+<div class="slider-group">
+<label>Learning Rate:</label>
+<input type="range" id="lr-slider" min="-5" max="-1" step="0.1" value="-3" oninput="updateLR()">
+<span class="val" id="lr-val">0.001</span>
+</div>
+</div>
+
+<div class="stats">
+<div class="stat purple"><div class="num" id="s-weight">0.5000</div><div class="label">Weight (w)</div></div>
+<div class="stat green"><div class="num" id="s-pred">50.00</div><div class="label">Prediction (k&euro;)</div></div>
+<div class="stat red"><div class="num" id="s-loss">10000</div><div class="label">Loss</div></div>
+<div class="stat blue"><div class="num" id="s-step">0</div><div class="label">Training Step</div></div>
+</div>
+
+<div class="charts">
+<div><h2>Loss over Training Steps</h2><canvas id="chart-loss"></canvas></div>
+<div><h2>Prediction vs Actual (150k&euro;)</h2><canvas id="chart-pred"></canvas></div>
+</div>
+</div>
+
+<div class="card two-layer" id="two-layer-card" style="display:none">
+<h2>Two Layers &mdash; Chain Rule Visualization</h2>
+<div class="explanation">
+With 2 layers the gradient must flow through both via the <strong>chain rule</strong>: &part;L/&part;w1 = &part;L/&part;out &times; &part;out/&part;h &times; &part;h/&part;w1.
+</div>
+<div class="flow">
+<div class="flow-row">
+<div class="flow-box input">Input<br><strong>100</strong></div>
+<div class="arrow">&rarr;</div>
+<div class="flow-box weight" id="fb2-w1">&times; w1<br><strong id="fb2-w1-val">0.50</strong></div>
+<div class="arrow">&rarr;</div>
+<div class="flow-box" style="border:2px solid #94e2d5;color:#94e2d5" id="fb2-hidden">Hidden (h)<br><strong id="fb2-h-val">50.00</strong></div>
+<div class="arrow">&rarr;</div>
+<div class="flow-box weight" id="fb2-w2">&times; w2<br><strong id="fb2-w2-val">1.00</strong></div>
+<div class="arrow">&rarr;</div>
+<div class="flow-box output" id="fb2-out">Output<br><strong id="fb2-out-val">50.00</strong></div>
+<div class="arrow">&rarr;</div>
+<div class="flow-box loss" id="fb2-loss">Loss<br><strong id="fb2-loss-val">10000</strong></div>
+</div>
+<div class="flow-row" id="grad-row-2l" style="opacity:0;transition:opacity .5s">
+<div class="flow-box grad">&part;L/&part;w1<br><strong id="fb2-gw1">-</strong></div>
+<div class="arrow back">&larr;</div>
+<div class="flow-box grad">&part;L/&part;h<br><strong id="fb2-gh">-</strong></div>
+<div class="arrow back">&larr;</div>
+<div class="flow-box grad">&part;L/&part;w2<br><strong id="fb2-gw2">-</strong></div>
+<div class="arrow back">&larr;</div>
+<div class="flow-box grad">&part;L/&part;out<br><strong id="fb2-gout">-</strong></div>
+</div>
+</div>
+<div class="controls">
+<button class="btn" onclick="step2L()">Step (forward + backward + update)</button>
+<button class="btn accent" onclick="train2L()">Train 50 steps</button>
+<button class="btn warn" onclick="reset2L()">Reset</button>
+</div>
+<div class="stats">
+<div class="stat purple"><div class="num" id="s2-w1">0.50</div><div class="label">w1</div></div>
+<div class="stat purple"><div class="num" id="s2-w2">1.00</div><div class="label">w2</div></div>
+<div class="stat green"><div class="num" id="s2-pred">50.00</div><div class="label">Prediction</div></div>
+<div class="stat red"><div class="num" id="s2-loss">10000</div><div class="label">Loss</div></div>
+</div>
+</div>
+
+<div class="controls" style="justify-content:center">
+<button class="btn secondary" id="btn-add-layer" onclick="toggleTwoLayer()">Add a Layer</button>
+</div>
+
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const INPUT=100,ACTUAL=150;
+let w=0.5,lr=0.001,step=0,training=false,trainInterval=null;
+let lossHist=[],predHist=[];
+let show2L=false;
+
+function forward(){return INPUT*w}
+function loss(pred){return(pred-ACTUAL)**2}
+function gradW(pred){return 2*(pred-ACTUAL)*INPUT}
+
+function updateUI(){
+  const pred=forward(),l=loss(pred);
+  document.getElementById('fb-weight-val').textContent=w.toFixed(4);
+  document.getElementById('fb-output-val').textContent=pred.toFixed(2);
+  document.getElementById('fb-loss-val').textContent=l.toFixed(2);
+  document.getElementById('s-weight').textContent=w.toFixed(4);
+  document.getElementById('s-pred').textContent=pred.toFixed(2);
+  document.getElementById('s-loss').textContent=l.toFixed(2);
+  document.getElementById('s-step').textContent=step;
+  // highlight
+  ['fb-input','fb-weight','fb-output','fb-loss'].forEach(id=>{
+    document.getElementById(id).classList.remove('active');
+  });
+}
+
+function doBackward(){
+  const pred=forward(),g=gradW(pred),l=loss(pred);
+  document.getElementById('flow-backward').style.display='flex';
+  document.getElementById('fb-grad-val').textContent=g.toFixed(1);
+  document.getElementById('fb-loss2').textContent=l.toFixed(1);
+  document.getElementById('step-explain').innerHTML=
+    `Gradient &part;L/&part;w = 2&times;(${pred.toFixed(1)}&minus;${ACTUAL})&times;${INPUT} = <strong>${g.toFixed(1)}</strong>. This tells us which direction to adjust w.`;
+  document.getElementById('btn-update').disabled=false;
+  // animate
+  document.getElementById('fb-loss').classList.add('active');
+  setTimeout(()=>document.getElementById('fb-grad-w').classList.add('active'),300);
+}
+
+function doUpdate(){
+  const pred=forward(),g=gradW(pred);
+  const oldW=w;
+  w=w-lr*g;
+  step++;
+  const newPred=forward();
+  lossHist.push(loss(newPred));
+  predHist.push(newPred);
+  document.getElementById('step-explain').innerHTML=
+    `w = ${oldW.toFixed(4)} &minus; ${lr}&times;(${g.toFixed(1)}) = <strong>${w.toFixed(4)}</strong>. Prediction moved from ${pred.toFixed(2)} to ${newPred.toFixed(2)}.`;
+  document.getElementById('flow-backward').style.display='none';
+  document.getElementById('btn-update').disabled=true;
+  updateUI();
+  drawCharts();
+}
+
+function doStep(){
+  const pred=forward(),g=gradW(pred);
+  w=w-lr*g;
+  step++;
+  const newPred=forward();
+  lossHist.push(loss(newPred));
+  predHist.push(newPred);
+  updateUI();
+  drawCharts();
+}
+
+function toggleTrain(){
+  training=!training;
+  const btn=document.getElementById('btn-train');
+  if(training){
+    btn.textContent='Stop';
+    trainInterval=setInterval(()=>{
+      doStep();
+      if(loss(forward())<0.001){toggleTrain()}
+    },80);
+  } else {
+    btn.textContent='Train (auto)';
+    clearInterval(trainInterval);
+  }
+}
+
+function doReset(){
+  if(training)toggleTrain();
+  w=0.5;step=0;lossHist=[];predHist=[];
+  document.getElementById('flow-backward').style.display='none';
+  document.getElementById('btn-update').disabled=true;
+  document.getElementById('step-explain').innerHTML='Click <strong>Backward Pass</strong> to compute the gradient, then <strong>Update Weight</strong> to apply the learning rate.';
+  updateUI();drawCharts();
+}
+
+function updateLR(){
+  lr=Math.pow(10,parseFloat(document.getElementById('lr-slider').value));
+  document.getElementById('lr-val').textContent=lr.toFixed(6).replace(/0+$/,'').replace(/\.$/,'.0');
+}
+
+// Charts
+function drawCharts(){
+  drawLineChart('chart-loss',lossHist,'#f38ba8','Loss');
+  drawPredChart();
+}
+function drawLineChart(id,data,color,label){
+  const c=document.getElementById(id),ctx=c.getContext('2d');
+  c.width=c.offsetWidth*2;c.height=c.offsetHeight*2;
+  ctx.scale(2,2);
+  const W=c.offsetWidth,H=c.offsetHeight;
+  ctx.clearRect(0,0,W,H);
+  if(data.length<2)return;
+  const max=Math.max(...data)*1.1||1,min=0;
+  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();
+  data.forEach((v,i)=>{
+    const x=20+i/(data.length-1)*(W-40),y=H-20-(v-min)/(max-min)*(H-40);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  ctx.fillStyle='#6c7086';ctx.font='11px sans-serif';
+  ctx.fillText('0',2,H-8);ctx.fillText(max.toFixed(0),2,16);
+  ctx.fillText(label,W/2-20,14);
+}
+function drawPredChart(){
+  const c=document.getElementById('chart-pred'),ctx=c.getContext('2d');
+  c.width=c.offsetWidth*2;c.height=c.offsetHeight*2;
+  ctx.scale(2,2);
+  const W=c.offsetWidth,H=c.offsetHeight;
+  ctx.clearRect(0,0,W,H);
+  // actual line
+  const yActual=H-20-(ACTUAL/200)*(H-40);
+  ctx.strokeStyle='#a6e3a144';ctx.lineWidth=1;ctx.setLineDash([5,5]);
+  ctx.beginPath();ctx.moveTo(20,yActual);ctx.lineTo(W-10,yActual);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#a6e3a1';ctx.font='11px sans-serif';ctx.fillText('Actual: 150',W-80,yActual-4);
+  if(predHist.length<2)return;
+  const max=200;
+  ctx.strokeStyle='#89b4fa';ctx.lineWidth=2;ctx.beginPath();
+  predHist.forEach((v,i)=>{
+    const x=20+i/(predHist.length-1)*(W-40),y=H-20-(Math.min(v,max)/max)*(H-40);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  ctx.fillStyle='#6c7086';ctx.fillText('Prediction vs Actual',W/2-50,14);
+}
+
+// Two-layer network
+let w1_2=0.5,w2_2=1.0,step2=0;
+function toggleTwoLayer(){
+  show2L=!show2L;
+  document.getElementById('two-layer-card').style.display=show2L?'block':'none';
+  document.getElementById('btn-add-layer').textContent=show2L?'Hide Second Layer':'Add a Layer';
+  if(show2L)update2LUI();
+}
+function fwd2L(){const h=INPUT*w1_2;return{h,out:h*w2_2}}
+function update2LUI(){
+  const{h,out}=fwd2L(),l=(out-ACTUAL)**2;
+  document.getElementById('fb2-w1-val').textContent=w1_2.toFixed(4);
+  document.getElementById('fb2-w2-val').textContent=w2_2.toFixed(4);
+  document.getElementById('fb2-h-val').textContent=h.toFixed(2);
+  document.getElementById('fb2-out-val').textContent=out.toFixed(2);
+  document.getElementById('fb2-loss-val').textContent=l.toFixed(2);
+  document.getElementById('s2-w1').textContent=w1_2.toFixed(4);
+  document.getElementById('s2-w2').textContent=w2_2.toFixed(4);
+  document.getElementById('s2-pred').textContent=out.toFixed(2);
+  document.getElementById('s2-loss').textContent=l.toFixed(2);
+}
+function step2L(){
+  const{h,out}=fwd2L(),l=(out-ACTUAL)**2;
+  const dL_dout=2*(out-ACTUAL);
+  const dL_dw2=dL_dout*h;
+  const dL_dh=dL_dout*w2_2;
+  const dL_dw1=dL_dh*INPUT;
+  // show grads
+  document.getElementById('fb2-gout').textContent=dL_dout.toFixed(1);
+  document.getElementById('fb2-gw2').textContent=dL_dw2.toFixed(1);
+  document.getElementById('fb2-gh').textContent=dL_dh.toFixed(1);
+  document.getElementById('fb2-gw1').textContent=dL_dw1.toFixed(1);
+  document.getElementById('grad-row-2l').style.opacity='1';
+  // update
+  w1_2-=lr*dL_dw1;
+  w2_2-=lr*dL_dw2;
+  step2++;
+  setTimeout(()=>{update2LUI();document.getElementById('grad-row-2l').style.opacity='0'},600);
+}
+function train2L(){for(let i=0;i<50;i++){const{h,out}=fwd2L();const d=2*(out-ACTUAL);w1_2-=lr*d*w2_2*INPUT;w2_2-=lr*d*h}update2LUI()}
+function reset2L(){w1_2=0.5;w2_2=1.0;step2=0;update2LUI();document.getElementById('grad-row-2l').style.opacity='0'}
+
+updateUI();
+window.addEventListener('resize',drawCharts);
+</script>
+</body>
+</html>

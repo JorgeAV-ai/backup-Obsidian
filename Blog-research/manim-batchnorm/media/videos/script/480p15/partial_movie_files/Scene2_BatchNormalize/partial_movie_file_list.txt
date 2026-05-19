@@ -1,0 +1,4 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene2_BatchNormalize/1710030337_2296093263_2912128687.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene2_BatchNormalize/912179168_604695468_4262272214.mp4'
+file 'file:/Users/jorgeav/Desktop/BeatEm/backup-Obsidian/Blog-research/manim-batchnorm/media/videos/script/480p15/partial_movie_files/Scene2_BatchNormalize/912179168_3379838333_3118696044.mp4'

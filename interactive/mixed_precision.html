@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mixed Precision: Training Twice as Fast</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:18px;font-size:1.5rem;color:#cba6f7;letter-spacing:1px}
+.container{display:flex;flex-wrap:wrap;gap:16px;padding:0 20px 20px;flex:1;justify-content:center;align-items:flex-start}
+.main-col{flex:1;min-width:400px;max-width:720px;display:flex;flex-direction:column;gap:16px}
+.side-col{width:320px;display:flex;flex-direction:column;gap:16px}
+.card{background:#181825;border-radius:12px;border:1px solid #313244;padding:18px}
+.card h2{font-size:1rem;color:#89b4fa;margin-bottom:12px}
+.pipeline{display:flex;flex-direction:column;gap:0}
+.stage{padding:14px;border-left:3px solid #313244;position:relative;opacity:0.35;transition:opacity .3s,border-color .3s}
+.stage.active{opacity:1;border-left-color:#cba6f7}
+.stage.done{opacity:0.7;border-left-color:#a6e3a1}
+.stage-num{position:absolute;left:-14px;top:12px;background:#cba6f7;color:#1e1e2e;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700}
+.stage.done .stage-num{background:#a6e3a1}
+.stage-title{font-weight:600;font-size:.9rem;margin-bottom:4px}
+.stage-val{font-family:'Courier New',monospace;font-size:1rem;color:#f9e2af;margin:4px 0}
+.stage-note{font-size:.78rem;color:#a6adc8}
+.speed-bar{height:8px;border-radius:4px;margin:6px 0}
+.btn-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:4px}
+.btn{background:#cba6f7;color:#1e1e2e;border:none;padding:10px 22px;border-radius:8px;font-weight:700;cursor:pointer;font-size:.9rem;transition:background .2s}
+.btn:hover{background:#b4befe}
+.btn:disabled{opacity:0.4;cursor:default}
+.gpu-compare{display:flex;gap:14px;flex-wrap:wrap}
+.gpu{flex:1;min-width:120px;background:#11111b;border-radius:10px;padding:14px;text-align:center}
+.gpu-label{font-size:.85rem;font-weight:600;margin-bottom:8px}
+.gpu-bar-bg{background:#313244;border-radius:6px;height:20px;position:relative;overflow:hidden;margin:6px 0}
+.gpu-bar-fill{height:100%;border-radius:6px;transition:width .5s}
+.gpu-text{font-size:.82rem;margin-top:4px}
+.bit-layout{display:flex;gap:2px;justify-content:center;margin:8px 0;flex-wrap:wrap}
+.bit{width:18px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#1e1e2e}
+.bit.sign{background:#f38ba8}
+.bit.exp{background:#89b4fa}
+.bit.man{background:#a6e3a1}
+.bit-legend{display:flex;gap:12px;justify-content:center;font-size:.75rem;margin-top:6px}
+.bit-legend span{display:flex;align-items:center;gap:4px}
+.toggle-row{display:flex;gap:16px;align-items:center;font-size:.85rem;margin-bottom:8px}
+.toggle-row label{cursor:pointer;display:flex;align-items:center;gap:4px}
+.toggle-row input{accent-color:#cba6f7}
+.overflow-section{margin-top:12px}
+.overflow-section input[type=number]{background:#11111b;border:1px solid #313244;color:#cdd6f4;padding:6px 10px;border-radius:6px;width:140px;font-family:monospace;font-size:.9rem}
+.overflow-result{font-size:.82rem;margin-top:8px;line-height:1.7;font-family:monospace}
+.overflow-result .ok{color:#a6e3a1}
+.overflow-result .fail{color:#f38ba8}
+footer{text-align:center;padding:16px;font-size:.75rem;color:#585b70;border-top:1px solid #313244}
+@media(max-width:800px){.container{flex-direction:column;align-items:center}.side-col{width:100%;max-width:500px}.main-col{max-width:100%}}
+</style>
+</head>
+<body>
+<h1>Mixed Precision: Training Twice as Fast</h1>
+<div class="container">
+  <div class="main-col">
+    <div class="card">
+      <h2>Training Pipeline: One Weight Update</h2>
+      <div class="pipeline" id="pipeline"></div>
+      <div class="btn-row">
+        <button class="btn" id="prevBtn" disabled>&larr; Back</button>
+        <button class="btn" id="nextBtn">Next &rarr;</button>
+        <button class="btn" id="resetBtn">Reset</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Memory Comparison</h2>
+      <div class="gpu-compare">
+        <div class="gpu">
+          <div class="gpu-label">FP32 Only</div>
+          <div style="font-size:2rem">&#128187;</div>
+          <div class="gpu-bar-bg"><div class="gpu-bar-fill" style="width:100%;background:#f38ba8"></div></div>
+          <div class="gpu-text">24GB / 24GB</div>
+          <div class="gpu-text fail" style="color:#f38ba8;font-weight:700">OUT OF MEMORY &#10060;</div>
+        </div>
+        <div class="gpu">
+          <div class="gpu-label">Mixed Precision</div>
+          <div style="font-size:2rem">&#128187;</div>
+          <div class="gpu-bar-bg"><div class="gpu-bar-fill" style="width:58%;background:#a6e3a1"></div></div>
+          <div class="gpu-text">14GB / 24GB</div>
+          <div class="gpu-text" style="color:#a6e3a1;font-weight:700">Fits! &#9989; And 2x faster</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="side-col">
+    <div class="card">
+      <h2>FP16 vs BF16 Bit Layout</h2>
+      <div class="toggle-row">
+        <label><input type="radio" name="fmt" value="fp16" checked> FP16</label>
+        <label><input type="radio" name="fmt" value="bf16"> BF16</label>
+      </div>
+      <div id="bitDisplay"></div>
+      <div class="bit-legend">
+        <span><span class="bit sign" style="width:14px;height:14px">S</span> Sign (1)</span>
+        <span><span class="bit exp" style="width:14px;height:14px">E</span> Exponent</span>
+        <span><span class="bit man" style="width:14px;height:14px">M</span> Mantissa</span>
+      </div>
+      <div id="fmtInfo" style="font-size:.8rem;margin-top:10px;color:#a6adc8;line-height:1.6"></div>
+    </div>
+    <div class="card">
+      <h2>Overflow Demo</h2>
+      <p style="font-size:.82rem;color:#a6adc8;margin-bottom:10px">Enter a number to see how FP16 and BF16 handle it:</p>
+      <div class="overflow-section">
+        <input type="number" id="overflowInput" value="65600" step="any">
+        <button class="btn" style="margin-left:8px;padding:6px 14px;font-size:.82rem" id="overflowBtn">Test</button>
+        <div class="overflow-result" id="overflowResult"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+// Pipeline stages
+const masterWeight=0.12345678;
+const fp16Weight=0.1235;
+const forwardResult=0.1235*0.875+0.032;// example multiply + add
+const lossValue=2.347;
+const scaledLoss=lossValue*1024;
+const gradient=0.00182;
+const scaledGrad=gradient*1024;
+const unscaledGrad=gradient;
+const updatedWeight=masterWeight-0.001*unscaledGrad;
+
+const stages=[
+  {title:'FP32 Master Weight',val:masterWeight.toFixed(8),note:'Full 32-bit precision: all digits preserved.',color:'#89b4fa'},
+  {title:'Copy to FP16',val:fp16Weight.toFixed(4),note:'Truncated to 16-bit: less precise, but half the memory.',color:'#f9e2af'},
+  {title:'Forward Pass in FP16',val:forwardResult.toFixed(4),note:'Multiply + Add in FP16. FAST!',speed:true,color:'#a6e3a1'},
+  {title:'Loss Scaling (x1024)',val:scaledLoss.toFixed(1),note:'Multiply loss by 1024. Why? Small gradients in FP16 would underflow to 0.0 and be lost forever.',color:'#f38ba8'},
+  {title:'Backward Pass in FP16',val:scaledGrad.toFixed(4),note:'Compute scaled gradient in FP16.',color:'#fab387'},
+  {title:'Unscale Gradient (/1024)',val:unscaledGrad.toFixed(8),note:'Divide gradient by 1024 to restore true value.',color:'#f5c2e7'},
+  {title:'Update FP32 Master Weight',val:updatedWeight.toFixed(8),note:'Apply gradient to the precise FP32 copy. Precision is preserved for the next iteration!',color:'#cba6f7'}
+];
+
+let currentStage=-1;
+const pipelineEl=document.getElementById('pipeline');
+const nextBtn=document.getElementById('nextBtn');
+const prevBtn=document.getElementById('prevBtn');
+const resetPipeBtn=document.getElementById('resetBtn');
+
+function renderPipeline(){
+  pipelineEl.innerHTML='';
+  stages.forEach((s,i)=>{
+    const cls=i<currentStage?'stage done':i===currentStage?'stage active':'stage';
+    let speedHTML='';
+    if(s.speed&&i<=currentStage){
+      speedHTML=`
+        <div style="font-size:.78rem;margin-top:6px">
+          <div style="display:flex;align-items:center;gap:8px"><span>FP32:</span><div class="speed-bar" style="flex:1;background:#45475a"><div style="width:50%;background:#89b4fa;height:8px;border-radius:4px"></div></div><span style="color:#89b4fa">1x</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><span>FP16:</span><div class="speed-bar" style="flex:1;background:#45475a"><div style="width:100%;background:#a6e3a1;height:8px;border-radius:4px"></div></div><span style="color:#a6e3a1">2x</span></div>
+        </div>`;
+    }
+    pipelineEl.innerHTML+=`
+      <div class="${cls}">
+        <div class="stage-num">${i+1}</div>
+        <div class="stage-title" style="color:${s.color}">${s.title}</div>
+        ${i<=currentStage?`<div class="stage-val">${s.val}</div>`:''}
+        ${i<=currentStage?`<div class="stage-note">${s.note}</div>`:''}
+        ${speedHTML}
+      </div>`;
+  });
+  prevBtn.disabled=currentStage<0;
+  nextBtn.disabled=currentStage>=stages.length-1;
+}
+
+nextBtn.addEventListener('click',()=>{if(currentStage<stages.length-1){currentStage++;renderPipeline();}});
+prevBtn.addEventListener('click',()=>{if(currentStage>=0){currentStage--;renderPipeline();}});
+resetPipeBtn.addEventListener('click',()=>{currentStage=-1;renderPipeline();});
+renderPipeline();
+
+// Bit layout display
+function renderBits(fmt){
+  const el=document.getElementById('bitDisplay');
+  const info=document.getElementById('fmtInfo');
+  let exp,man,label;
+  if(fmt==='fp16'){exp=5;man=10;label='FP16 (Half Precision)';}
+  else{exp=8;man=7;label='BF16 (Brain Float 16)';}
+  let html='<div style="text-align:center;font-size:.85rem;font-weight:600;margin-bottom:8px">'+label+'</div><div class="bit-layout">';
+  html+='<div class="bit sign">S</div>';
+  for(let i=0;i<exp;i++)html+=`<div class="bit exp">E</div>`;
+  for(let i=0;i<man;i++)html+=`<div class="bit man">M</div>`;
+  html+='</div>';
+  el.innerHTML=html;
+  if(fmt==='fp16'){
+    info.innerHTML='<b>5</b> exponent bits, <b>10</b> mantissa bits<br>Range: ~6e-8 to 65504<br>More precision, smaller range';
+  }else{
+    info.innerHTML='<b>8</b> exponent bits, <b>7</b> mantissa bits<br>Range: ~1e-38 to ~3.4e+38<br>Same range as FP32, less precision';
+  }
+}
+document.querySelectorAll('input[name=fmt]').forEach(r=>r.addEventListener('change',()=>renderBits(r.value)));
+renderBits('fp16');
+
+// Overflow demo
+const FP16_MAX=65504;
+const BF16_MAX=3.39e+38;
+const FP16_MIN=6.1e-5;
+const BF16_MIN=1.17e-38;
+
+function testOverflow(){
+  const v=parseFloat(document.getElementById('overflowInput').value);
+  const res=document.getElementById('overflowResult');
+  if(isNaN(v)){res.innerHTML='Enter a valid number.';return;}
+  const absV=Math.abs(v);
+  let fp16Status,bf16Status;
+  if(absV>FP16_MAX)fp16Status=`<span class="fail">OVERFLOW! (max ${FP16_MAX})</span> &rarr; Inf`;
+  else if(absV<FP16_MIN&&absV!==0)fp16Status=`<span class="fail">UNDERFLOW! (min ~${FP16_MIN})</span> &rarr; 0.0`;
+  else fp16Status=`<span class="ok">OK</span> &rarr; ${absV>1000?v.toPrecision(4):v.toFixed(4)}`;
+  if(absV>BF16_MAX)bf16Status=`<span class="fail">OVERFLOW! (max ~3.4e38)</span> &rarr; Inf`;
+  else if(absV<BF16_MIN&&absV!==0)bf16Status=`<span class="fail">UNDERFLOW! (min ~1.2e-38)</span> &rarr; 0.0`;
+  else bf16Status=`<span class="ok">OK</span> &rarr; ${absV>1000?v.toPrecision(3):v.toFixed(2)}`;
+  res.innerHTML=`FP16: ${fp16Status}<br>BF16: ${bf16Status}`;
+}
+document.getElementById('overflowBtn').addEventListener('click',testOverflow);
+document.getElementById('overflowInput').addEventListener('keydown',e=>{if(e.key==='Enter')testOverflow();});
+testOverflow();
+</script>
+</body>
+</html>

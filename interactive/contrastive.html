@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contrastive Learning: Teaching a Model What's Similar</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1e1e2e;
+    color: #ffffff;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 6px;
+    background: linear-gradient(135deg, #89b4fa, #a6e3a1, #f38ba8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle {
+    color: #a6adc8;
+    font-size: 0.95rem;
+    margin-bottom: 18px;
+    text-align: center;
+    max-width: 700px;
+  }
+  .main-container {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 1200px;
+  }
+  canvas {
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 12px;
+    cursor: crosshair;
+  }
+  .panel {
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 300px;
+    max-width: 380px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .panel h2 {
+    font-size: 1.1rem;
+    color: #cdd6f4;
+    border-bottom: 1px solid #313244;
+    padding-bottom: 8px;
+  }
+  .control-group { display: flex; flex-direction: column; gap: 6px; }
+  .control-group label {
+    font-size: 0.85rem;
+    color: #a6adc8;
+    display: flex;
+    justify-content: space-between;
+  }
+  .control-group label span { color: #f9e2af; font-weight: 600; }
+  .temp-explanation {
+    font-size: 0.75rem;
+    color: #585b70;
+    line-height: 1.4;
+    padding: 6px 8px;
+    background: #11111b;
+    border-radius: 6px;
+    transition: all 0.3s;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #313244;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #89b4fa;
+    cursor: pointer;
+    border: 2px solid #1e1e2e;
+  }
+  .btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn:hover { transform: translateY(-1px); filter: brightness(1.15); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; filter: none; }
+  .btn-animate { background: #a6e3a1; color: #1e1e2e; }
+  .btn-reset { background: #f38ba8; color: #1e1e2e; }
+  .btn-row { display: flex; gap: 10px; }
+  .loss-display {
+    background: #11111b;
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .loss-display .label { font-size: 0.8rem; color: #a6adc8; margin-bottom: 4px; }
+  .loss-display .value { font-size: 1.6rem; font-weight: 700; color: #f9e2af; }
+  .anchor-display {
+    background: #11111b;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    font-size: 0.9rem;
+  }
+  .anchor-display .anchor-emoji { font-size: 1.5rem; }
+  .anchor-display .anchor-name { color: #f9e2af; font-weight: 600; }
+  .anchor-display .anchor-hint { color: #585b70; font-size: 0.78rem; margin-top: 4px; }
+  .insight-box {
+    background: #11111b;
+    border: 1px solid #45475a;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.8rem;
+    color: #a6adc8;
+    line-height: 1.6;
+  }
+  .insight-box strong { color: #f9e2af; }
+  .insight-box .positive { color: #a6e3a1; }
+  .insight-box .negative { color: #f38ba8; }
+  .formula {
+    background: #11111b;
+    border-radius: 8px;
+    padding: 14px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.78rem;
+    color: #cdd6f4;
+    line-height: 1.6;
+    text-align: center;
+    word-break: break-all;
+  }
+  .formula .highlight { color: #89b4fa; font-weight: 600; }
+  .legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #bac2de; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .instructions {
+    font-size: 0.8rem;
+    color: #6c7086;
+    line-height: 1.5;
+    padding: 10px;
+    background: #11111b;
+    border-radius: 8px;
+  }
+  footer {
+    margin-top: 24px;
+    color: #585b70;
+    font-size: 0.8rem;
+    padding: 12px;
+  }
+  @media (max-width: 768px) {
+    canvas { width: 100% !important; height: auto !important; }
+    .panel { min-width: 100%; max-width: 100%; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Contrastive Learning: Teaching a Model What's Similar</h1>
+<p class="subtitle">Click any item to make it the anchor. Watch the model learn that a Poodle is more like a Golden Retriever than a Sedan -- without ever being told what a "dog" is.</p>
+
+<div class="main-container">
+  <canvas id="canvas" width="650" height="600"></canvas>
+  <div class="panel">
+    <h2>Selected Anchor</h2>
+    <div class="anchor-display" id="anchor-display">
+      <div class="anchor-hint">Click any item on the canvas to select it as the anchor</div>
+    </div>
+
+    <h2>Controls</h2>
+    <div class="control-group">
+      <label>Temperature (&tau;) <span id="tau-val">0.50</span></label>
+      <input type="range" id="tau" min="0.05" max="1.5" step="0.05" value="0.50">
+      <div class="temp-explanation" id="temp-explain">Moderate: balanced similarity matching</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-animate" id="btn-animate" disabled>Animate Training Step</button>
+      <button class="btn btn-reset" id="btn-reset">Reset</button>
+    </div>
+
+    <div class="loss-display">
+      <div class="label">InfoNCE Loss</div>
+      <div class="value" id="loss-val">--</div>
+    </div>
+
+    <div class="formula">
+      <span class="highlight">L</span> = -log( exp(sim(anchor, positive) / <span class="highlight">&tau;</span>) / &Sigma;<sub>k</sub> exp(sim(anchor, item<sub>k</sub>) / <span class="highlight">&tau;</span>) )
+    </div>
+
+    <div class="insight-box" id="insight-box">
+      <strong>Key insight:</strong> After training, the model learns that <span class="positive">a Golden Retriever is more similar to a Poodle</span> than to <span class="negative">a Sedan</span>, even though it was never explicitly told what a "dog" is. It discovers categories purely from similarity signals.
+    </div>
+
+    <h2>Legend</h2>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#89b4fa">&#x1F415;</div> Dogs (Blue)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a6e3a1">&#x1F697;</div> Cars (Green)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f38ba8">&#x1F355;</div> Food (Red)</div>
+      <div class="legend-item" style="color:#a6e3a1;">&#x2192; Same category! (pull together)</div>
+      <div class="legend-item" style="color:#f38ba8;">&#x2192; Different! (push apart)</div>
+      <div class="legend-item"><span style="color:#f9e2af;">&#x2B50;</span> Anchor (selected item)</div>
+    </div>
+
+    <div class="instructions">
+      <strong>How to use:</strong><br>
+      1. Click any item to select it as the anchor.<br>
+      2. Green arrows = positive pairs (same category, pulled closer).<br>
+      3. Red arrows = negative pairs (different category, pushed apart).<br>
+      4. Adjust temperature to change how strict the similarity is.<br>
+      5. Press "Animate Training Step" to watch items reorganize.
+    </div>
+  </div>
+</div>
+
+<footer>Generated for Obsidian Basics vault</footer>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const tauSlider = document.getElementById('tau');
+const tauVal = document.getElementById('tau-val');
+const tempExplain = document.getElementById('temp-explain');
+const lossVal = document.getElementById('loss-val');
+const btnAnimate = document.getElementById('btn-animate');
+const btnReset = document.getElementById('btn-reset');
+const anchorDisplay = document.getElementById('anchor-display');
+const insightBox = document.getElementById('insight-box');
+
+const W = canvas.width, H = canvas.height;
+
+const CATEGORIES = [
+  { name: 'Dogs', color: '#89b4fa', cx: 170, cy: 170 },
+  { name: 'Cars', color: '#a6e3a1', cx: 480, cy: 170 },
+  { name: 'Food', color: '#f38ba8', cx: 325, cy: 460 },
+];
+
+const ITEMS = [
+  // Dogs
+  { emoji: '\u{1F415}', label: 'Golden Retriever', category: 0 },
+  { emoji: '\u{1F429}', label: 'Poodle', category: 0 },
+  { emoji: '\u{1F415}\u200D\u{1F9BA}', label: 'German Shepherd', category: 0 },
+  { emoji: '\u{1F9AE}', label: 'Labrador', category: 0 },
+  { emoji: '\u{1F436}', label: 'Puppy', category: 0 },
+  // Cars
+  { emoji: '\u{1F697}', label: 'Sedan', category: 1 },
+  { emoji: '\u{1F699}', label: 'SUV', category: 1 },
+  { emoji: '\u{1F3CE}', label: 'Sports Car', category: 1 },
+  { emoji: '\u{1F695}', label: 'Taxi', category: 1 },
+  { emoji: '\u{1F690}', label: 'Van', category: 1 },
+  // Food
+  { emoji: '\u{1F355}', label: 'Pizza', category: 2 },
+  { emoji: '\u{1F354}', label: 'Burger', category: 2 },
+  { emoji: '\u{1F32E}', label: 'Taco', category: 2 },
+  { emoji: '\u{1F363}', label: 'Sushi', category: 2 },
+  { emoji: '\u{1F370}', label: 'Cake', category: 2 },
+];
+
+function randGauss() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+let points = [];
+let initialPoints = [];
+let anchorIdx = null;
+let animating = false;
+
+function initPoints() {
+  points = [];
+  ITEMS.forEach((item, i) => {
+    const cat = CATEGORIES[item.category];
+    points.push({
+      x: cat.cx + randGauss() * 55,
+      y: cat.cy + randGauss() * 55,
+      category: item.category,
+      emoji: item.emoji,
+      label: item.label,
+    });
+  });
+  // Clamp
+  points.forEach(p => {
+    p.x = Math.max(40, Math.min(W - 40, p.x));
+    p.y = Math.max(40, Math.min(H - 40, p.y));
+  });
+  initialPoints = points.map(p => ({ ...p }));
+}
+
+function cosineSim(a, b) {
+  const ax = a.x - W / 2, ay = a.y - H / 2;
+  const bx = b.x - W / 2, by = b.y - H / 2;
+  const dot = ax * bx + ay * by;
+  const ma = Math.sqrt(ax * ax + ay * ay) || 1e-8;
+  const mb = Math.sqrt(bx * bx + by * by) || 1e-8;
+  return dot / (ma * mb);
+}
+
+function computeLoss() {
+  if (anchorIdx === null) return null;
+  const tau = parseFloat(tauSlider.value);
+  const anchor = points[anchorIdx];
+  const positives = points.filter((p, i) => i !== anchorIdx && p.category === anchor.category);
+  const others = points.filter((_, i) => i !== anchorIdx);
+
+  if (positives.length === 0) return null;
+
+  let totalLoss = 0;
+  for (const pos of positives) {
+    const simPos = cosineSim(anchor, pos) / tau;
+    let denom = 0;
+    for (const o of others) {
+      denom += Math.exp(cosineSim(anchor, o) / tau);
+    }
+    totalLoss += -simPos + Math.log(denom);
+  }
+  return totalLoss / positives.length;
+}
+
+function drawArrow(fromX, fromY, toX, toY, color, thickness, label) {
+  const dx = toX - fromX, dy = toY - fromY;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 40) return;
+  const nx = dx / len, ny = dy / len;
+  const startX = fromX + nx * 26;
+  const startY = fromY + ny * 26;
+  const endX = toX - nx * 26;
+  const endY = toY - ny * 26;
+
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(endX, endY);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.min(thickness, 4);
+  ctx.globalAlpha = 0.5;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Arrowhead
+  const headLen = 10;
+  const angle = Math.atan2(dy, dx);
+  ctx.beginPath();
+  ctx.moveTo(endX, endY);
+  ctx.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
+  ctx.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.7;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Label at midpoint
+  if (label) {
+    const mx = (startX + endX) / 2;
+    const my = (startY + endY) / 2;
+    ctx.font = 'bold 10px system-ui';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = 0.8;
+    ctx.fillText(label, mx, my - 6);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawPushArrow(itemX, itemY, anchorX, anchorY, color, thickness) {
+  // Arrow pointing away from anchor
+  const dx = itemX - anchorX, dy = itemY - anchorY;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 40) return;
+  const nx = dx / len, ny = dy / len;
+  const startX = itemX + nx * 26;
+  const startY = itemY + ny * 26;
+  const endX = itemX + nx * 60;
+  const endY = itemY + ny * 60;
+
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(endX, endY);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.min(thickness, 4);
+  ctx.globalAlpha = 0.5;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  const headLen = 9;
+  const angle = Math.atan2(ny, nx);
+  ctx.beginPath();
+  ctx.moveTo(endX, endY);
+  ctx.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
+  ctx.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.7;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Label
+  const mx = (startX + endX) / 2;
+  const my = (startY + endY) / 2;
+  ctx.font = 'bold 10px system-ui';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.globalAlpha = 0.7;
+  ctx.fillText('Different!', mx + 8, my - 5);
+  ctx.globalAlpha = 1;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = '#313244';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < W; i += 50) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
+  }
+  for (let i = 0; i < H; i += 50) {
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke();
+  }
+
+  // Category region backgrounds
+  CATEGORIES.forEach(c => {
+    ctx.fillStyle = c.color + '12';
+    ctx.beginPath();
+    ctx.arc(c.cx, c.cy, 110, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = c.color + '55';
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(c.name, c.cx, c.cy - 118);
+  });
+
+  const tau = parseFloat(tauSlider.value);
+
+  // Arrows from anchor
+  if (anchorIdx !== null) {
+    const anchor = points[anchorIdx];
+    for (let i = 0; i < points.length; i++) {
+      if (i === anchorIdx) continue;
+      const p = points[i];
+      const sim = cosineSim(anchor, p);
+      const strength = Math.exp(Math.abs(sim) / tau);
+      const thickness = Math.max(1.5, Math.min(strength * 1.5, 4));
+
+      if (p.category === anchor.category) {
+        drawArrow(anchor.x, anchor.y, p.x, p.y, '#a6e3a1', thickness, 'Same category!');
+      } else {
+        drawPushArrow(p.x, p.y, anchor.x, anchor.y, '#f38ba8', thickness);
+      }
+    }
+  }
+
+  // Draw items
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const isAnchor = i === anchorIdx;
+    const catColor = CATEGORIES[p.category].color;
+
+    if (isAnchor) {
+      // Glow for anchor
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 34);
+      grad.addColorStop(0, '#f9e2af55');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 34, 0, Math.PI * 2); ctx.fill();
+
+      // Anchor ring
+      ctx.strokeStyle = '#f9e2af';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 24, 0, Math.PI * 2); ctx.stroke();
+    } else if (anchorIdx !== null && p.category === points[anchorIdx].category) {
+      // Positive ring
+      ctx.strokeStyle = '#a6e3a1';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 22, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // Background circle
+    ctx.fillStyle = isAnchor ? '#f9e2af33' : catColor + '33';
+    ctx.beginPath(); ctx.arc(p.x, p.y, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = isAnchor ? '#f9e2af' : catColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 20, 0, Math.PI * 2); ctx.stroke();
+
+    // Emoji
+    ctx.font = '18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.emoji, p.x, p.y + 1);
+
+    // Label below
+    ctx.font = isAnchor ? 'bold 10px system-ui' : '9px system-ui';
+    ctx.fillStyle = isAnchor ? '#f9e2af' : '#bac2de';
+    ctx.textBaseline = 'top';
+    ctx.fillText(p.label, p.x, p.y + 24);
+  }
+
+  // Loss
+  const loss = computeLoss();
+  lossVal.textContent = loss !== null ? loss.toFixed(4) : '--';
+}
+
+function updateAnchorDisplay() {
+  if (anchorIdx === null) {
+    anchorDisplay.innerHTML = '<div class="anchor-hint">Click any item on the canvas to select it as the anchor</div>';
+    btnAnimate.disabled = true;
+  } else {
+    const p = points[anchorIdx];
+    const catName = CATEGORIES[p.category].name;
+    anchorDisplay.innerHTML =
+      '<div class="anchor-emoji">' + p.emoji + '</div>' +
+      '<div class="anchor-name">' + p.label + '</div>' +
+      '<div class="anchor-hint">Category: ' + catName + '</div>';
+    btnAnimate.disabled = false;
+
+    // Update insight with specific example
+    const positives = points.filter((pt, i) => i !== anchorIdx && pt.category === p.category);
+    const negatives = points.filter(pt => pt.category !== p.category);
+    const posEx = positives.length > 0 ? positives[0] : null;
+    const negEx = negatives.length > 0 ? negatives[0] : null;
+    if (posEx && negEx) {
+      insightBox.innerHTML =
+        '<strong>Key insight:</strong> After training, the model learns that ' +
+        '<span class="positive">' + p.emoji + ' ' + p.label + ' is more similar to ' + posEx.emoji + ' ' + posEx.label + '</span>' +
+        ' than to ' +
+        '<span class="negative">' + negEx.emoji + ' ' + negEx.label + '</span>' +
+        ', even though it was never explicitly told what a "' + catName.replace(/s$/, '').toLowerCase() + '" is. It discovers categories purely from similarity signals.';
+    }
+  }
+}
+
+function updateTempExplanation() {
+  const tau = parseFloat(tauSlider.value);
+  let text;
+  if (tau <= 0.15) {
+    text = '\u03C4=' + tau.toFixed(2) + ': Very strict -- only near-identical items match. Hard negatives get strongly pushed away.';
+  } else if (tau <= 0.4) {
+    text = '\u03C4=' + tau.toFixed(2) + ': Fairly strict -- close similarity required. Good training signal.';
+  } else if (tau <= 0.7) {
+    text = '\u03C4=' + tau.toFixed(2) + ': Moderate -- balanced similarity matching. Standard training setting.';
+  } else if (tau <= 1.0) {
+    text = '\u03C4=' + tau.toFixed(2) + ': Relaxed -- broader similarity accepted. Softer distinctions between categories.';
+  } else {
+    text = '\u03C4=' + tau.toFixed(2) + ': Very relaxed -- almost everything looks equally similar. Weak learning signal.';
+  }
+  tempExplain.textContent = text;
+}
+
+// Click to select anchor
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width, scaleY = H / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+
+  let closest = -1, minD = 30;
+  for (let i = 0; i < points.length; i++) {
+    const dx = points[i].x - mx, dy = points[i].y - my;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < minD) { minD = d; closest = i; }
+  }
+  anchorIdx = closest >= 0 ? closest : null;
+  updateAnchorDisplay();
+  draw();
+});
+
+// Tau slider
+tauSlider.addEventListener('input', () => {
+  tauVal.textContent = parseFloat(tauSlider.value).toFixed(2);
+  updateTempExplanation();
+  draw();
+});
+
+// Animate step
+btnAnimate.addEventListener('click', () => {
+  if (anchorIdx === null || animating) return;
+  animating = true;
+  const tau = parseFloat(tauSlider.value);
+  const anchor = points[anchorIdx];
+  const lr = 10;
+  const steps = 40;
+  let step = 0;
+
+  // Compute target displacements
+  const displacements = points.map((p, i) => {
+    if (i === anchorIdx) return { dx: 0, dy: 0 };
+    const dx = anchor.x - p.x, dy = anchor.y - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const sim = cosineSim(anchor, p);
+    const weight = Math.exp(sim / tau);
+
+    if (p.category === anchor.category) {
+      // Pull toward anchor
+      return { dx: (dx / dist) * lr * Math.min(weight, 3), dy: (dy / dist) * lr * Math.min(weight, 3) };
+    } else {
+      // Push away from anchor
+      return { dx: -(dx / dist) * lr * Math.min(weight, 2), dy: -(dy / dist) * lr * Math.min(weight, 2) };
+    }
+  });
+
+  function animStep() {
+    step++;
+    for (let i = 0; i < points.length; i++) {
+      if (i === anchorIdx) continue;
+      points[i].x += displacements[i].dx / steps;
+      points[i].y += displacements[i].dy / steps;
+      points[i].x = Math.max(30, Math.min(W - 30, points[i].x));
+      points[i].y = Math.max(30, Math.min(H - 30, points[i].y));
+    }
+    draw();
+    if (step < steps) requestAnimationFrame(animStep);
+    else animating = false;
+  }
+  requestAnimationFrame(animStep);
+});
+
+// Reset
+btnReset.addEventListener('click', () => {
+  points = initialPoints.map(p => ({ ...p }));
+  anchorIdx = null;
+  animating = false;
+  updateAnchorDisplay();
+  draw();
+});
+
+updateTempExplanation();
+initPoints();
+draw();
+</script>
+</body>
+</html>
