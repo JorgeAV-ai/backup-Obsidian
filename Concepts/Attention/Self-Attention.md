@@ -23,7 +23,7 @@ The attention score between a query and a key is their dot product: if the query
 
 ![[basics_self_attention.png]]
 
-[🔗 Open interactive Self-Attention Explorer](../interactive/self_attention.html)
+[🔗 Open interactive Self-Attention Explorer](../../interactive/self_attention.html)
 
 ### The core formula
 

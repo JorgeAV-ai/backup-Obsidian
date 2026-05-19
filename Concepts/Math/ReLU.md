@@ -12,7 +12,7 @@ The tradeoff is the **dead neuron problem**. If a neuron's pre-activation become
 
 ![[basics_relu.png]]
 
-[🔗 Open interactive Activations Explorer](../interactive/activations.html)
+[🔗 Open interactive Activations Explorer](../../interactive/activations.html)
 
 ### Formula
 

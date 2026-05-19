@@ -12,7 +12,7 @@ RoPE operates on pairs of dimensions. For each consecutive pair $(2i, 2i{+}1)$ i
 
 ![[basics_rope.png]]
 
-[🔗 Open interactive RoPE Explorer](../interactive/rope.html)
+[🔗 Open interactive RoPE Explorer](../../interactive/rope.html)
 
 **Frequency schedule.** Given embedding dimension $d$ and a base frequency parameter $\theta_{\text{base}}$ (typically 10000):
 

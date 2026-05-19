@@ -8,15 +8,15 @@ The original Transformer is an **encoder-decoder** architecture, but in practice
 
 | Variant | Structure | Masking | Typical use | Examples |
 |---|---|---|---|---|
-| **Encoder-only** | Stack of encoder layers | Bidirectional (no mask) | Classification, retrieval, representation learning | BERT, [[A Modern Bidirectional Encoder for Fast, Memory Efficient, and Long Context Finetuning and Inference (ModernBERT)\|ModernBERT]] |
+| **Encoder-only** | Stack of encoder layers | Bidirectional (no mask) | Classification, retrieval, representation learning | BERT, [[A Modern Bidirectional Encoder for Fast, Memory Efficient, and Long Context Finetuning and Inference (ModernBERT)|ModernBERT]] |
 | **Decoder-only** | Stack of decoder layers | Causal mask | Text generation, language modeling | GPT, LLaMA, Mistral |
-| **Encoder-Decoder** | Encoder + decoder with cross-attention | Encoder: bidirectional; Decoder: causal + cross-attn | Translation, document understanding, summarization | Original Transformer, T5, [[OCR-free Document Understanding Transformer (Donut)\|Donut]] |
+| **Encoder-Decoder** | Encoder + decoder with cross-attention | Encoder: bidirectional; Decoder: causal + cross-attn | Translation, document understanding, summarization | Original Transformer, T5, [[OCR-free Document Understanding Transformer (Donut)|Donut]] |
 
 ## How it works
 
 ![[basics_transformer.png]]
 
-[🔗 Open interactive Transformer Visualizer](../interactive/transformer.html)
+[🔗 Open interactive Transformer Visualizer](../../interactive/transformer.html)
 
 ### Full architecture overview
 

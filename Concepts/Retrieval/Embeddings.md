@@ -27,7 +27,7 @@ where $P$ can be learned (GPT-2) or computed via sinusoidal functions (original 
 
 ![[basics_embeddings.png]]
 
-[🔗 Open interactive Embeddings Explorer](../interactive/embeddings.html)
+[🔗 Open interactive Embeddings Explorer](../../interactive/embeddings.html)
 
 ### Formula
 

@@ -24,7 +24,7 @@ Layer Normalization re-centers and re-scales the activations of a single sample 
 
 ![[basics_layer_norm.png]]
 
-[🔗 Open interactive Layer Norm Visualizer](../interactive/layer_norm.html)
+[🔗 Open interactive Layer Norm Visualizer](../../interactive/layer_norm.html)
 
 ### Formula
 

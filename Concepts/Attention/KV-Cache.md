@@ -10,7 +10,7 @@ The **KV-Cache** stores the Key and Value matrices from all previous steps. When
 
 ![[basics_kv_cache.png]]
 
-[🔗 Open interactive KV-Cache Visualizer](../interactive/kv_cache.html)
+[🔗 Open interactive KV-Cache Visualizer](../../interactive/kv_cache.html)
 
 ### Without KV-Cache (naive generation)
 

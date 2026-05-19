@@ -18,7 +18,7 @@ Beam search dominated machine translation and summarization for years. For creat
 
 ![[basics_beam_search.png]]
 
-[🔗 Open interactive Beam Search Explorer](../interactive/beam_search.html)
+[🔗 Open interactive Beam Search Explorer](../../interactive/beam_search.html)
 
 ### Pseudocode: greedy decoding
 

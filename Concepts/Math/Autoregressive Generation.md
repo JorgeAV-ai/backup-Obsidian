@@ -12,7 +12,7 @@ During training, the model is typically trained with **teacher forcing**: instea
 
 ![[basics_autoregressive.png]]
 
-[🔗 Open interactive Autoregressive Visualizer](../interactive/autoregressive.html)
+[🔗 Open interactive Autoregressive Visualizer](../../interactive/autoregressive.html)
 
 ### The Autoregressive Factorization
 

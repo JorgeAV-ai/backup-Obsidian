@@ -12,7 +12,7 @@ A critical subtlety: **training and inference behave differently**. During train
 
 ![[basics_batchnorm.png]]
 
-[🔗 Open interactive BatchNorm Visualizer](../interactive/batchnorm.html)
+[🔗 Open interactive BatchNorm Visualizer](../../interactive/batchnorm.html)
 
 ### Forward pass formulas
 

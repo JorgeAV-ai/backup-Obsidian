@@ -14,7 +14,7 @@ There are two main approaches:
 
 ![[basics_quantization.png]]
 
-[🔗 Open interactive Quantization Explorer](../interactive/quantization.html)
+[🔗 Open interactive Quantization Explorer](../../interactive/quantization.html)
 
 ### The quantization formula
 
@@ -87,4 +87,4 @@ Quantization is what makes large language models accessible on consumer hardware
 ## Used in
 
 - [[LoRA]]
-- [[Mixed Precision (FP16/BF16)]]
+- [[Mixed Precision (FP16 BF16)]]

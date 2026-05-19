@@ -21,7 +21,7 @@ This is a sweet spot between word-level tokenization (huge vocabulary, cannot ha
 
 ![[basics_tokenization.png]]
 
-[🔗 Open interactive Tokenization Explorer](../interactive/tokenization.html)
+[🔗 Open interactive Tokenization Explorer](../../interactive/tokenization.html)
 
 ### BPE training: building the vocabulary
 

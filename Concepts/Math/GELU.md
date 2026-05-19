@@ -12,7 +12,7 @@ Why does GELU dominate in Transformers? The smoothness is key. Transformers proc
 
 ![[basics_gelu.png]]
 
-[🔗 Open interactive Activations Explorer](../interactive/activations.html)
+[🔗 Open interactive Activations Explorer](../../interactive/activations.html)
 
 ### Exact formula
 

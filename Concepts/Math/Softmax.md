@@ -16,7 +16,7 @@ It is a "soft" version of argmax: instead of picking the single largest element,
 
 ![[basics_softmax.png]]
 
-[🔗 Open interactive Softmax Visualizer](../interactive/softmax.html)
+[🔗 Open interactive Softmax Visualizer](../../interactive/softmax.html)
 
 ### Formula
 

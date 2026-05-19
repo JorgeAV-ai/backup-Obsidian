@@ -14,7 +14,7 @@ A **learning rate schedule** defines how the learning rate $\alpha$ varies acros
 
 ![[basics_lr_schedule.png]]
 
-[🔗 Open interactive LR Schedule Explorer](../interactive/lr_schedule.html)
+[🔗 Open interactive LR Schedule Explorer](../../interactive/lr_schedule.html)
 
 ### 1. Linear Warmup
 

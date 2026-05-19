@@ -12,7 +12,7 @@ A key practical challenge is **hard negatives** — negatives that are superfici
 
 ![[basics_contrastive.png]]
 
-[🔗 Open interactive Contrastive Playground](../interactive/contrastive.html)
+[🔗 Open interactive Contrastive Playground](../../interactive/contrastive.html)
 
 **InfoNCE loss** (for a positive pair $(i, j)$ within a batch of $N$ pairs, yielding $2N$ total augmented examples):
 
@@ -20,7 +20,7 @@ $$\mathcal{L} = -\log \frac{\exp\!\bigl(\text{sim}(z_i, z_j)/\tau\bigr)}{\displa
 
 where:
 - $z_i, z_j$ are the projected representations of the two views of example $i$
-- $\text{sim}(u, v) = \frac{u^\top v}{\|u\|\,\|v\|}$ (cosine similarity)
+- $\text{sim}(u, v) = \frac{u^\top v}{|u|\,|v|}$ (cosine similarity)
 - $\tau$ is the temperature scalar
 - The denominator sums over all other examples in the batch (both positives and negatives of other pairs)
 

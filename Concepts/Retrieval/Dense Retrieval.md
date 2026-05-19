@@ -12,7 +12,7 @@ Compared to **sparse retrieval** (BM25, TF-IDF), which builds inverted indices o
 
 ![[basics_dense_retrieval.png]]
 
-[🔗 Open interactive Retrieval Explorer](../interactive/retrieval.html)
+[🔗 Open interactive Retrieval Explorer](../../interactive/retrieval.html)
 
 **Relevance scoring:**
 

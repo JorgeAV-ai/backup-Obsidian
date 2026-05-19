@@ -20,7 +20,7 @@ Without a skip connection, a layer must learn the entire desired mapping $H(x)$.
 
 ![[basics_residual.png]]
 
-[🔗 Open interactive Residual Connections Demo](../interactive/residual.html)
+[🔗 Open interactive Residual Connections Demo](../../interactive/residual.html)
 
 ### Formula
 

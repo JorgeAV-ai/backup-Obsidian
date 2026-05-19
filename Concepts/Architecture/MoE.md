@@ -16,7 +16,7 @@ In a standard transformer, every token passes through the same FFN. In an MoE tr
 
 ![[basics_moe.png]]
 
-[🔗 Open interactive MoE Visualizer](../interactive/moe.html)
+[🔗 Open interactive MoE Visualizer](../../interactive/moe.html)
 
 ### Formula
 

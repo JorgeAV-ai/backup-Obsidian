@@ -12,7 +12,7 @@ The key insight is that the softmax normalization constant can be computed incre
 
 ![[basics_flash_attention.png]]
 
-[🔗 Open interactive Flash Attention Visualizer](../interactive/flash_attention.html)
+[🔗 Open interactive Flash Attention Visualizer](../../interactive/flash_attention.html)
 
 ### GPU memory hierarchy
 

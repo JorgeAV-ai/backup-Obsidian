@@ -26,7 +26,7 @@ tags:
 
 ![[basics_mixed_precision.png]]
 
-[🔗 Open interactive Mixed Precision Demo](../interactive/mixed_precision.html)
+[🔗 Open interactive Mixed Precision Demo](../../interactive/mixed_precision.html)
 
 ### The core idea
 

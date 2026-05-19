@@ -18,7 +18,7 @@ tags:
 
 ![[basics_adam.png]]
 
-[🔗 Open interactive Adam Optimizer Visualizer](../interactive/adam.html)
+[🔗 Open interactive Adam Optimizer Visualizer](../../interactive/adam.html)
 
 ### Default hyperparameters
 

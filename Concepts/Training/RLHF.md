@@ -18,7 +18,7 @@ The technique was popularized by InstructGPT (Ouyang et al., 2022) and is the ke
 
 ![[basics_rlhf.png]]
 
-[🔗 Open interactive RLHF Demo](../interactive/rlhf.html)
+[🔗 Open interactive RLHF Demo](../../interactive/rlhf.html)
 
 ### The three-stage RLHF pipeline
 
@@ -40,7 +40,7 @@ where $y_w$ is the preferred (winning) response and $y_l$ is the rejected (losin
 
 Use the reward model as a reward signal to fine-tune the SFT model with Proximal Policy Optimization (PPO). The objective:
 
-$$\max_\pi \, \mathbb{E}_{x \sim D, \, y \sim \pi(\cdot|x)} \left[ R(x, y) - \beta \, \text{KL}(\pi(\cdot|x) \| \pi_{\text{ref}}(\cdot|x)) \right]$$
+$$\max_\pi \, \mathbb{E}_{x \sim D, \, y \sim \pi(\cdot|x)} \left[ R(x, y) - \beta \, \text{KL}(\pi(\cdot|x) | \pi_{\text{ref}}(\cdot|x)) \right]$$
 
 The KL penalty prevents the model from drifting too far from the SFT model (reference policy $\pi_{\text{ref}}$), which would lead to reward hacking -- producing gibberish that exploits the reward model.
 

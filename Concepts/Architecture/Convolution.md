@@ -18,7 +18,7 @@ Each convolutional layer typically has multiple filters, each producing its own 
 
 ![[basics_convolution.png]]
 
-[🔗 Open interactive Convolution Explorer](../interactive/convolution.html)
+[🔗 Open interactive Convolution Explorer](../../interactive/convolution.html)
 
 ### Core formula (2D discrete convolution)
 

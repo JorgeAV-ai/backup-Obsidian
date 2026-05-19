@@ -18,7 +18,7 @@ At inference time, dropout is turned off entirely. The full network is used as-i
 
 ![[basics_dropout.png]]
 
-[🔗 Open interactive Dropout Visualizer](../interactive/dropout.html)
+[🔗 Open interactive Dropout Visualizer](../../interactive/dropout.html)
 
 ### Formula
 

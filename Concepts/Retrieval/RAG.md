@@ -21,7 +21,7 @@ The core idea is simple: given a user query, (1) find the most relevant document
 
 ![[basics_rag.png]]
 
-[🔗 Open interactive RAG Demo](../interactive/rag.html)
+[🔗 Open interactive RAG Demo](../../interactive/rag.html)
 
 ### The RAG pipeline
 

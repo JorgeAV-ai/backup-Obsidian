@@ -20,7 +20,7 @@ This product of Jacobians is what makes backpropagation both powerful and fragil
 
 ![[basics_backprop.png]]
 
-[🔗 Open interactive Backpropagation Demo](../interactive/backprop.html)
+[🔗 Open interactive Backpropagation Demo](../../interactive/backprop.html)
 
 ### Computational graph view
 

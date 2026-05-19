@@ -18,7 +18,7 @@ This is the single most important technique for fitting large models into limite
 
 ![[basics_gradient_checkpointing.png]]
 
-[🔗 Open interactive Gradient Checkpointing Demo](../interactive/gradient_checkpointing.html)
+[🔗 Open interactive Gradient Checkpointing Demo](../../interactive/gradient_checkpointing.html)
 
 ### Standard forward/backward (no checkpointing)
 

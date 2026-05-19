@@ -16,7 +16,7 @@ where $B \in \mathbb{R}^{d \times r}$ and $A \in \mathbb{R}^{r \times d}$, with 
 
 ![[basics_lora.png]]
 
-[🔗 Open interactive LoRA Explorer](../interactive/lora.html)
+[🔗 Open interactive LoRA Explorer](../../interactive/lora.html)
 
 ### The LoRA layer
 
