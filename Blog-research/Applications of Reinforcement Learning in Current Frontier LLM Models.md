@@ -27,6 +27,8 @@ Modern reasoning systems combine several kinds of feedback. Human preference rew
 
 There is also a growing class of environment rewards. Instead of asking a human or a reward model whether an answer is good, the model acts inside an external system. A compiler can check whether generated code runs. Unit tests can verify a patch. A theorem checker, search system, browser, or tool-use environment can provide feedback that is more grounded than a preference label.
 
+Another important split is between outcome rewards and process rewards. Outcome rewards judge only the final answer: did the proof finish, did the code pass, did the number match? Process rewards try to evaluate the intermediate reasoning steps. Verifier-reviser systems are one practical way to approximate process supervision without requiring humans to label every step by hand.
+
 This distinction matters because training-time RL and test-time compute are related but not identical. Training-time RL changes the model's weights. Test-time compute gives the model more inference budget to sample, verify, revise, or search before answering. The strongest frontier reasoning systems usually combine both: RL teaches useful reasoning behaviors, while extra inference-time computation gives those behaviors room to unfold.
 
 ## The Reasoning Revolution in Frontier Models (2025-2026)
@@ -41,12 +43,13 @@ This distinction matters because training-time RL and test-time compute are rela
 | Moonshot Kimi | Long-context RL and judge-style feedback | Online RL over long reasoning traces | Math, coding, and open-ended agentic tasks | Non-verifiable tasks still depend on rubrics or model judges |
 | Mistral Magistral | Reasoning-focused post-training | RL and distillation-style bootstrapping | Multilingual reasoning traces and final answers | Public technical detail is more limited than for DeepSeek-R1 |
 
-Recent research clearly shows that major leaps in solving complex math problems, generating code, and logical analysis do not come simply from making models bigger. Instead, they come from using intensive reinforcement learning. Different companies have tackled the same core challenge; giving rich and stable feedback to massive language models in unique ways.
+Recent research suggests that major leaps in solving complex math problems, generating code, and logical analysis do not come simply from making models bigger. They also depend on stronger post-training, better reward signals, and more inference-time computation. Different companies have tackled the same core challenge: giving rich and stable feedback to massive language models in unique ways.
 
 ### DeepSeek: Verifiable Rewards and GRPO
 
-DeepSeek-R1 and its predecessor, DeepSeek-R1-Zero, made the RLVR paradigm widely visible. Challenging the traditional methods used since InstructGPT, DeepSeek researchers showed that advanced reasoning skills can naturally develop in a base model purely through large-scale reinforcement learning. 
-This completely bypassed the initial supervised fine-tuning (SFT) phase. By training a 32-billion parameter model (Qwen-32B-Base) over tens of thousands of RL steps, structured thinking behaviors emerged spontaneously, even if they were initially a bit messy and mixed different languages.
+DeepSeek-R1 and its predecessor, DeepSeek-R1-Zero, made the RLVR paradigm widely visible. Challenging the traditional methods used since InstructGPT, DeepSeek researchers showed with R1-Zero that advanced reasoning skills can emerge in a base model through large-scale reinforcement learning without an initial supervised fine-tuning phase. By training a 32-billion parameter model (Qwen-32B-Base) over tens of thousands of RL steps, structured thinking behaviors emerged spontaneously, even if they were initially a bit messy and mixed different languages.
+
+The final DeepSeek-R1 pipeline then added cold-start supervised data, rejection sampling, and additional alignment stages to make the behavior more readable, stable, and useful in practice.
 
 To stabilize this training and scale up to the final DeepSeek-R1 model, the team used a specific algorithm called Group Relative Policy Optimization (GRPO). Unlike the old PPO standard, which required a heavy "Critic" model to calculate the baseline scores, GRPO is much lighter. It samples a group of different answers for the same prompt and scores them against each other.
 This creates an objective that heavily penalizes bad answers and rewards good ones relative to their peers, while keeping updates in check to avoid catastrophic forgetting. This efficiency allowed DeepSeek to compete with massive proprietary models using only a fraction of the usual computing power.
@@ -68,6 +71,9 @@ The OpenAI ecosystem, featuring the "o" series and later frontier reasoning mode
 
 ![[ChatGPT Image May 19, 2026, 12_45_21 PM.png|608]]
 
+> [!note]
+> This figure uses DeepSeek-R1-Zero scaling curves as a public proxy for the general train-time/test-time scaling idea. OpenAI has described similar qualitative behavior for reasoning models, but has not released equally detailed public intermediate scaling traces.
+
 
 The reported results show why this paradigm became so influential. On math and science benchmarks, deep RL and extra inference-time computation appear to push reasoning models far beyond ordinary chat models. But perhaps the most interesting application is using RL in highly technical fields where there is little or no human training data available. Through an evaluation system called Makora, OpenAI treated the writing of code kernels (highly optimized code for hardware) as a pure RL problem.
 
@@ -79,20 +85,23 @@ The LLM writes a proposed piece of code, which is sent to a backend system that 
 
 ### Meta Llama 4: Asynchronous Optimization and Lightweight DPO
 
-Meta's approach with its Llama 4 family (which includes Scout 17B, Maverick 17B, and the Behemoth 288B model) shows a different way to scale online reinforcement learning for open-source models.  Unlike older models that relied on massive amounts of supervised data, Llama 4's post-training uses a lean and targeted pipeline: a bit of lightweight SFT, followed by heavy Online RL, and finished with a quick Direct Preference Optimization (DPO) polish.
+Meta's approach with its Llama 4 family (which includes Scout 17B, Maverick 17B, and the Behemoth 288B model) shows a different way to scale online reinforcement learning for open-source models. Unlike older models that relied on massive amounts of supervised data, Llama 4's reported post-training uses a lean and targeted pipeline: a bit of lightweight SFT, followed by heavy online RL, and finished with a Direct Preference Optimization (DPO) polish.
 
-The big technical breakthrough for Llama 4 Maverick; which lets a 17-billion active parameter model beat much larger competitors; is its _asynchronous_ RL infrastructure. Normally, algorithms like PPO or GRPO generate text and update the model on the same server node. This creates a massive bottleneck because the training GPUs sit idle while waiting for the rewards to be calculated. Meta fixed this by splitting the workload: computing the rewards runs independently on separate threads. This "masks" the time it takes to evaluate complex rewards (like running code tests), speeding up math training by 1.4x and coding training by 2.0x.
+The big technical idea in Llama 4 Maverick's post-training is its _asynchronous_ RL infrastructure. Normally, algorithms like PPO or GRPO generate text and update the model on the same server node. This creates a bottleneck because the training GPUs can sit idle while waiting for rewards to be calculated. Meta describes splitting the workload so reward computation runs independently, masking the time it takes to evaluate complex rewards such as code tests.
 
-During this phase, Meta trains Llama 4 exclusively on highly difficult prompts. Afterward, the final DPO layer acts purely to polish the tone and fix cases where the model might falsely refuse to answer a safe question. Thanks to this balanced approach, Llama 4 can handle massive 10-million token contexts and has reduced its false-refusal rate to under 2%, staying conversational without losing its sharp reasoning skills.
+During this phase, Meta emphasizes difficult prompts. Afterward, the final DPO layer helps polish tone and reduce cases where the model falsely refuses to answer a safe question. This makes Llama 4 a useful example of a hybrid post-training stack: RL for harder reasoning behavior, then preference optimization for user-facing behavior.
 
 ### Google Gemini Deep Think: Autonomous Research and Aletheia
 
 Google DeepMind's ecosystem, specifically Gemini Deep Think and related research agents, represents one of the clearest examples of reinforcement learning applied to long-horizon scientific reasoning. While many models optimize single answers, Deep Think-style systems frame reasoning around autonomous, multi-part agents. The most advanced example is the mathematical agent, Aletheia.
 
-Aletheia doesn't rely on strict programming languages to prove math; it operates entirely in natural English. It uses a reinforcement loop with three parts: a Generator, a Verifier, and a Reviser. When given a hard theorem, the model writes out possible solutions. If the Verifier spots a small mistake, it doesn't just throw the whole answer away. Instead, it passes it to the Reviser to fix the logic. The answer is only scrapped if there is a massive, unfixable error. Aletheia is also allowed to browse the deep web to read mathematical papers and avoid making up fake citations.
+Aletheia doesn't rely on strict programming languages to prove math; it operates entirely in natural English. It uses a reinforcement loop with three parts: a Generator, a Verifier, and a Reviser. When given a hard theorem, the model writes out possible solutions. If the Verifier spots a small mistake, it doesn't just throw the whole answer away. Instead, it passes it to the Reviser to fix the logic. The answer is only scrapped if there is a massive, unfixable error. Aletheia can also use external search and scientific literature retrieval to validate claims and avoid making up fake citations.
 
 
 ![[ChatGPT Image May 19, 2026, 01_30_46 PM.png]]
+
+> [!note]
+> The diagram labels the repair component as "Reviewer"; in the text above, "Reviser" refers to the same correction role.
 
 Aletheia's reported results suggest that verifier-reviser loops can push natural-language mathematical proof systems well beyond ordinary single-pass generation, especially on difficult proof benchmarks. Even more impressively, Aletheia has been described as capable of producing substantial mathematical research artifacts and inspecting machine learning algorithms. The important technical point is not just the score, but the loop: generate, verify, revise, and only then accept the proof.
 
@@ -106,11 +115,14 @@ In late January 2026, Anthropic published a major update to this framework, rele
 
 ![[ChatGPT Image May 19, 2026, 01_21_22 PM.png|615]]
 
+> [!note]
+> This is a schematic view of RLAIF. The constitution guides critique, filtering, and preference construction; it should not be read as a clean ground-truth reward function.
+
 ### Moonshot AI Kimi: Scaling RL to Non-Verifiable Tasks
 
 Moonshot AI launched Kimi k1.5 and K2, pushing the boundaries of what RL can achieve outside of strict mathematics and coding. The main challenge with RL has historically been evaluating non-verifiable tasks, such as creative writing, search aggregation, or complex report generation, where an absolute "right" or "wrong" answer doesn't exist. Moonshot solved this by systematically deploying Generative Reward Models (GRMs) across a broad range of agentic behaviors. Instead of simple scalar scores, Kimi leverages an LLM-based "log judge" (e.g., Kimi-K2-Thinking) that uses a self-critique rubric to evaluate open-ended generation, deciding, for instance, whether an execution log proves that a software patch successfully removed a failure pattern.
 
-Furthermore, Moonshot AI discovered that scaling the context window to 128k tokens during the RL phase naturally allows the model to run implicit searches over the reasoning space via auto-regressive predictions. This established a simplistic yet incredibly effective RL framework. Because the model can utilize massive context to plan, reflect, and correct itself, Kimi achieves state-of-the-art results (such as matching OpenAI o1 on MathVista and Codeforces) without needing computationally heavy architectural tricks like Monte Carlo Tree Search (MCTS) or traditional Process Reward Models (PRMs).
+Furthermore, Moonshot AI discovered that scaling the context window to 128k tokens during the RL phase naturally allows the model to run implicit searches over the reasoning space via auto-regressive predictions. This established a simple but effective RL framework. Because the model can utilize massive context to plan, reflect, and correct itself, Kimi achieves strong results on math, coding, and vision-language reasoning tasks without needing computationally heavy architectural tricks like Monte Carlo Tree Search (MCTS) or traditional Process Reward Models (PRMs).
 
 ![[ChatGPT Image May 19, 2026, 01_59_05 PM.png]]
 
@@ -121,6 +133,9 @@ In early 2025, Mistral AI entered the frontier reasoning race with the release o
 Mistral's approach contrasts with labs that rely entirely on distilling traces from larger, closed models. Magistral was presented as a reasoning-focused extension of Mistral's frontier model family, with reinforcement learning playing a central role in its post-training. To create the highly efficient Magistral Small, Mistral utilized a sophisticated bootstrapping pipeline: they generated reasoning traces from the Medium model, filtered them to maintain a mixed difficulty level, augmented the data with subsets from OpenThoughts and OpenR1, and blended in general instruction tuning data to ensure the model didn't lose its non-reasoning conversational skills. Perhaps its most unique feature is its native multilingual strategy; the model is trained to generate both reasoning traces and final responses in the user's requested language, showing that advanced reasoning behavior does not have to be exclusively English.
 
 ![[ChatGPT Image May 19, 2026, 01_59_42 PM.png]]
+
+> [!note]
+> The mixture ratios in this diagram are schematic unless tied to a specific release note or technical report. The important point is the bootstrapping pattern: reasoning traces, verified code/math data, and a preservation mix for general instruction following.
 
 ## Limitations and Open Problems
 
