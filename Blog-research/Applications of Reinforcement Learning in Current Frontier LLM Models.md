@@ -91,8 +91,6 @@ Aletheia doesn't rely on strict programming languages to prove math; it operates
 
 ![[ChatGPT Image May 19, 2026, 01_30_46 PM.png]]
 
-The diagram labels the repair component as "Reviewer"; in the text above, "Reviser" refers to the same correction role.
-
 Aletheia's reported results suggest that verifier-reviser loops can push natural-language mathematical proof systems well beyond ordinary single-pass generation, especially on difficult proof benchmarks. Even more impressively, Aletheia has been described as capable of producing substantial mathematical research artifacts and inspecting machine learning algorithms. The important technical point is not just the score, but the loop: generate, verify, revise, and only then accept the proof.
 
 ### Anthropic Claude: Formal Constitutions and RLAIF
@@ -104,8 +102,6 @@ This method, called Reinforcement Learning from AI Feedback (RLAIF), forces the 
 In late January 2026, Anthropic published a major update to this framework, releasing "Claude's New Constitution." Shifting from a simple rule-based approach to a more reason-based alignment document, it establishes a priority hierarchy around safety, ethics, compliance, and helpfulness. The constitution does not magically solve alignment by itself. Its role is to define the critique framework used to generate, filter, and rank responses during training and evaluation. By making the document public, Anthropic also made its alignment philosophy easier to inspect and debate.
 
 ![[ChatGPT Image May 19, 2026, 01_21_22 PM.png|615]]
-
-This is a schematic view of RLAIF. The constitution guides critique, filtering, and preference construction; it should not be read as a clean ground-truth reward function.
 
 ### Moonshot AI Kimi: Scaling RL to Non-Verifiable Tasks
 
@@ -122,8 +118,6 @@ In early 2025, Mistral AI entered the frontier reasoning race with the release o
 Mistral's approach contrasts with labs that rely entirely on distilling traces from larger, closed models. Magistral was presented as a reasoning-focused extension of Mistral's frontier model family, with reinforcement learning playing a central role in its post-training. To create the highly efficient Magistral Small, Mistral utilized a sophisticated bootstrapping pipeline: they generated reasoning traces from the Medium model, filtered them to maintain a mixed difficulty level, augmented the data with subsets from OpenThoughts and OpenR1, and blended in general instruction tuning data to ensure the model didn't lose its non-reasoning conversational skills. Perhaps its most unique feature is its native multilingual strategy; the model is trained to generate both reasoning traces and final responses in the user's requested language, showing that advanced reasoning behavior does not have to be exclusively English.
 
 ![[ChatGPT Image May 19, 2026, 01_59_42 PM.png]]
-
-The mixture ratios in this diagram are schematic unless tied to a specific release note or technical report. The important point is the bootstrapping pattern: reasoning traces, verified code/math data, and a preservation mix for general instruction following.
 
 ## Limitations and Open Problems
 
