@@ -33,15 +33,7 @@ This distinction matters because training-time RL and test-time compute are rela
 
 ## The Reasoning Revolution in Frontier Models (2025-2026)
 
-| Model family / lab | Main reward signal | Optimization style | What RL is optimizing | Key caveat |
-| --- | --- | --- | --- | --- |
-| DeepSeek-R1 | Verifiable math/code rewards | GRPO / RLVR | Correct final answers and structured reasoning format | Works best where correctness can be checked |
-| OpenAI o-series and later reasoning models | Proprietary mixtures of rewards and evaluators | Large-scale RL plus test-time compute | Multi-step reasoning, coding, tool use, and safety behavior | Public details are limited |
-| Meta Llama 4 | Online rewards plus DPO-style polishing | Lightweight SFT, online RL, preference optimization | Reasoning quality, coding, and reduced false refusals | Infrastructure details and benchmark claims need careful sourcing |
-| Google Gemini Deep Think / Aletheia | Verifier and reviser feedback | Agentic reasoning loops | Long-horizon mathematical and scientific reasoning | Expensive and hard to audit from the outside |
-| Anthropic Claude | AI feedback and constitutional critique | RLAIF / Constitutional AI | Harmlessness, helpfulness, refusal behavior, and value consistency | The constitution defines the critique framework, not a simple scalar truth source |
-| Moonshot Kimi | Long-context RL and judge-style feedback | Online RL over long reasoning traces | Math, coding, and open-ended agentic tasks | Non-verifiable tasks still depend on rubrics or model judges |
-| Mistral Magistral | Reasoning-focused post-training | RL and distillation-style bootstrapping | Multilingual reasoning traces and final answers | Public technical detail is more limited than for DeepSeek-R1 |
+![[rl_frontier_comparison_table.png|700]]
 
 Recent research suggests that major leaps in solving complex math problems, generating code, and logical analysis do not come simply from making models bigger. They also depend on stronger post-training, better reward signals, and more inference-time computation. Different companies have tackled the same core challenge: giving rich and stable feedback to massive language models in unique ways.
 
@@ -71,8 +63,7 @@ The OpenAI ecosystem, featuring the "o" series and later frontier reasoning mode
 
 ![[ChatGPT Image May 19, 2026, 12_45_21 PM.png|608]]
 
-> [!note]
-> This figure uses DeepSeek-R1-Zero scaling curves as a public proxy for the general train-time/test-time scaling idea. OpenAI has described similar qualitative behavior for reasoning models, but has not released equally detailed public intermediate scaling traces.
+This figure uses DeepSeek-R1-Zero scaling curves as a public proxy for the general train-time/test-time scaling idea. OpenAI has described similar qualitative behavior for reasoning models, but has not released equally detailed public intermediate scaling traces.
 
 
 The reported results show why this paradigm became so influential. On math and science benchmarks, deep RL and extra inference-time computation appear to push reasoning models far beyond ordinary chat models. But perhaps the most interesting application is using RL in highly technical fields where there is little or no human training data available. Through an evaluation system called Makora, OpenAI treated the writing of code kernels (highly optimized code for hardware) as a pure RL problem.
@@ -100,8 +91,7 @@ Aletheia doesn't rely on strict programming languages to prove math; it operates
 
 ![[ChatGPT Image May 19, 2026, 01_30_46 PM.png]]
 
-> [!note]
-> The diagram labels the repair component as "Reviewer"; in the text above, "Reviser" refers to the same correction role.
+The diagram labels the repair component as "Reviewer"; in the text above, "Reviser" refers to the same correction role.
 
 Aletheia's reported results suggest that verifier-reviser loops can push natural-language mathematical proof systems well beyond ordinary single-pass generation, especially on difficult proof benchmarks. Even more impressively, Aletheia has been described as capable of producing substantial mathematical research artifacts and inspecting machine learning algorithms. The important technical point is not just the score, but the loop: generate, verify, revise, and only then accept the proof.
 
@@ -115,8 +105,7 @@ In late January 2026, Anthropic published a major update to this framework, rele
 
 ![[ChatGPT Image May 19, 2026, 01_21_22 PM.png|615]]
 
-> [!note]
-> This is a schematic view of RLAIF. The constitution guides critique, filtering, and preference construction; it should not be read as a clean ground-truth reward function.
+This is a schematic view of RLAIF. The constitution guides critique, filtering, and preference construction; it should not be read as a clean ground-truth reward function.
 
 ### Moonshot AI Kimi: Scaling RL to Non-Verifiable Tasks
 
@@ -134,8 +123,7 @@ Mistral's approach contrasts with labs that rely entirely on distilling traces f
 
 ![[ChatGPT Image May 19, 2026, 01_59_42 PM.png]]
 
-> [!note]
-> The mixture ratios in this diagram are schematic unless tied to a specific release note or technical report. The important point is the bootstrapping pattern: reasoning traces, verified code/math data, and a preservation mix for general instruction following.
+The mixture ratios in this diagram are schematic unless tied to a specific release note or technical report. The important point is the bootstrapping pattern: reasoning traces, verified code/math data, and a preservation mix for general instruction following.
 
 ## Limitations and Open Problems
 
