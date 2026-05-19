@@ -1,38 +1,50 @@
-> [!quote] Information 
-> * @ Conference ICLR 2024 
+Hybrid CNN-Transformer with Hierarchical Attention (carrier tokens) for fast high-resolution image throughput.
+
+> [!quote] Information
+> * @ Conference ICLR 2024
 > * paper Paper [Link](https://arxiv.org/pdf/2306.06189)
 > * git Github [Link](https://github.com/NVlabs/FasterViT)
 > * hf Huggingface [Link](https://huggingface.co/papers/2306.06189)
+> *  tag Tags
+> 	[[Vision Transformers]]
+> 	[[Towards Enhanced Efficiency]]
+> 	[[Self-Attention mechanisms]]
 > * calendar Date 1 April 2024
-> * ? Motivation: 
+> * ? Motivation:
 > 		Vision transformers models still face high computational cost due to quadratic complexity in self-attentions. In addition, it is well known that CNNs provides great local features representations, feature that Vision Transformers lack of,  since they provide global feature learning.
 > *  Dataset Datasets:
 > 	[[ImageNet]]
 > 	[[MS COCO]]
 > 	[[ADE20K]]
-> 	
-> * Fields Related fields: 
-> 	[[Vision Transformers]]
-> 	[[Towards Enhanced Efficiency]]
-> 	[[Self-Attention mechanisms]]
-> 	
 
+### 1. Introduction
+#### 1.1 Background
+Novel hybrid architecture, tailored for high-resolution input images, while maintaining a fast image throughput. CNNs excel at capturing local features while Vision Transformers excel at global feature learning — a hybrid architecture can combine both strengths. Carrier tokens can effectively summarize local window information, enabling efficient cross-window interaction without full global attention. Hierarchical attention complexity can grow almost linearly with input resolution by making local windowed attention the compute bottleneck.
 
-## 1. Introduction
-
-Novel hybrid architecture, tailored for high-resolution input images, while maintaining a fast image throughput.
-
+#### 1.2 Objectives
 For each transformer block, we use an interleaved pattern of local and, newly proposed, Hierarchical Attention blocks to capture both short and long-range spatial dependencies and efficiently model the cross-window interactions (HAT). It learns carrier tokens as a summary of each local window and efficiently models the cross-interaction between these regions.
 
 ![[Pasted image 20241124161913.png]]
 Complexity of the Hierarchical Attention grows almost linearly with input image resolution, as the number of regions increases, due to the local windowed attention being the compute bottleneck.
 
+#### 1.3 What's New
+* Hierarchical Attention (HAT) mechanism using carrier tokens that summarize local windows and enable cross-window interaction at reduced cost
+* Hybrid CNN-Transformer architecture with interleaved local and hierarchical attention blocks
+* Near-linear complexity scaling with input resolution (vs. quadratic for standard ViTs)
+* State-of-the-art throughput-accuracy trade-off across classification, detection, and segmentation
 
-## 2 Architecture
+### 2. Methodology
+#### 2.2 Data
+* [[ImageNet]]-1K: 1.2M training and 50K validation images, 1000 categories (classification).
+* [[ImageNet]]-21K: 14M images with 21,841 classes (pre-training).
+* [[MS COCO]]: Detection and segmentation with Cascade Mask-RCNN.
+* [[ADE20K]]: Semantic segmentation with UperNet.
+
+#### 2.3 Model Architecture
 
 ![[Pasted image 20241124162245.png]]
 
-##### 2.1 **Patch Embeddings (Stem)**
+**Patch Embeddings (Stem)**
 
 ```
 kernel_size = 3
@@ -49,14 +61,14 @@ def FasterViTStem():
 
 ```
 
-###### *Comments*
-*BatchNorm:* goal of a Batchnorm is to reduce the covariate shift and makes the distribution more stable, accelerating the training and achieving higher accuracy. 
+> [!info]- Comments
+> *[[BatchNorm]]:* goal of a Batchnorm is to reduce the covariate shift and makes the distribution more stable, accelerating the training and achieving higher accuracy.
+>
+> *[[ReLU]]*: stands as Rectified linear Unit --> $ReLU(x) = max(0,x)$
+>
+> Convolution formula   $\dfrac{Input - kernel + 2*Padding}{Stride}$
 
-*ReLU*: stands as Rectified linear Unit --> $ReLU(x) = max(0,x)$
-
-Convolution formula   $\dfrac{Input - kernel + 2*Padding}{Stride}$
-
-##### 2.2 **Residual Conv Block**s: 
+**Residual Conv Blocks**
 
 $$
 \hat{x} = GELU(BN(Conv_{3\times3}(x))), \\
@@ -76,44 +88,44 @@ def ResidualConvBlock(input):
 
 ```
 
-###### *Comments:*
-*GELU*: stands as Gaussian Error Linear Unit, formula is a bit more complicated than ReLU, is derived from an approximation of the cumulative distribution (CDF) of the standard normal distribution
-$$GELU(x) = x \times CDF(x) = x \frac{1}{2}(1  + erf(\frac{x}{\sqrt{2}}))$$ being *erf* the Gaussian error function. Due to the complex function, it is used commonly an approximation of CDF, $1 + erf (\frac{x}{\sqrt{2}}) = 1 + tanh(\sqrt{\frac{2}{\pi}}(x + 0.044715x^3))$.  Leaving the formula as follows:
-$$GELU_{tanh}(x) = 0.5x(1 + tanh(\sqrt{\frac{2}{\pi}(x + 0.044715x^3)}))$$
+> [!info]- Comments
+> *[[GELU]]*: stands as Gaussian Error Linear Unit, formula is a bit more complicated than ReLU, is derived from an approximation of the cumulative distribution (CDF) of the standard normal distribution
+> $$GELU(x) = x \times CDF(x) = x \frac{1}{2}(1  + erf(\frac{x}{\sqrt{2}}))$$ being *erf* the Gaussian error function. Due to the complex function, it is used commonly an approximation of CDF, $1 + erf (\frac{x}{\sqrt{2}}) = 1 + tanh(\sqrt{\frac{2}{\pi}}(x + 0.044715x^3))$.  Leaving the formula as follows:
+> $$GELU_{tanh}(x) = 0.5x(1 + tanh(\sqrt{\frac{2}{\pi}(x + 0.044715x^3)}))$$
+>
+> There is also a simpler sigmoid-based approximation:
+> $$GELU_{sigmoid}(x) = x \times sigmoid(1.702 \times x)$$
 
-There is also a simpler sigmoid-based approximation:
-$$GELU_{sigmoid}(x) = x \times sigmoid(1.702 \times x)$$
 
-
-##### 2.3 **Downsample**: 
+**Downsample**
 
 ```
 def DownSample(dim):
 	LayerNorm2d(dim)
-	Conv2d(dim, dim*2, kernel_size, stride, padding, bias=False)	
+	Conv2d(dim, dim*2, kernel_size, stride, padding, bias=False)
 
 ```
 
 
-##### 2.4 **Hierarchical attention Block** :
+**Hierarchical Attention Block (HAT)**
 
 ![[Pasted image 20241124164924.png]]
 *Carrier Token*: Summarize role of the entire local window.
 
-*First Attention block* is applied on CTs to summarize and pass global information. 
-Then  Window tokens + CTs are concatenated --> every local window has access only to its own set of CTs. 
+*First Attention block* is applied on CTs to summarize and pass global information.
+Then  Window tokens + CTs are concatenated --> every local window has access only to its own set of CTs.
 Performing self attention on concatenated tokens we facilitate local and global information exchange at reduced cost.
 Feature map is divided into $n \times n$ local windows, being $n$  $\dfrac{H \times W}{k^2}$ , where $k$ is the window size.
 We Initialize CTs by pooling them to $L = 2^c$  tokens per window, being $c$ something called *control latency*, fixed to 1.
 $$\hat{x_c} = Conv_{3\times3}(x)$$
 $$\hat{x}_{ct} = AvgPool_{H \times W \rightarrow n^2 L}(\hat{x_c})$$
-	
+
 ```
 window_size = 7
 ct_size = 1
 output_size_ct = int(ct_size * input_res/window_size)
 stride_size_ct = int(input_resolution/output_size)
-kernel_size_ct = input_res - (output_size - 1) * stride_size 
+kernel_size_ct = input_res - (output_size - 1) * stride_size
 kernel_size_pos_embed = 3
 padding = 1
 
@@ -121,42 +133,26 @@ def InitializeCarrierToken():
 	conv2D(dim, dim, kernel_size_pos_embed, padding, groups=dim)
 	AvgPool2D(kernel_size_ct, stride_size_ct)
 	ConvertTo(B,C,H // window_size, window_size, W // window_size, window_size)
-	ReshapeTo(-1,H*W,C)	
+	ReshapeTo(-1,H*W,C)
 
 ```
-
-
 
 **HAT block**:
 $$ \hat{x_{ct}} = \hat{x_{ct}} + \gamma_{1} \cdot MHSA(LN(\hat{x_{ct}}))$$
 $$ \hat{x_{ct}} = \hat{x_{ct}} + \gamma_{2} \cdot MLP_{d \rightarrow 4d \rightarrow d}(LN(\hat{x_{ct}}))$$
 where MHSA represents Multi head self attention and MLP is a 2-layer MLP with GeLU act. function
 
-```
-def HAT():
-	PosEmbeds()
-	LayerNorm2D
+#### 2.4 Implementation Details
+- Trained FasterViT models using **LAMB optimizer** for 300 epochs with a learning rate of 5e-3 and a total batch size of 4096 using **32 A100 GPUs**.
+- **Data Augmentation**: same strategies as in previous efforts.
+- **Exponential Moving Average (EMA)** used during training.
+- For **pre-training on ImageNet-21K**: 90 epochs with LR 4e-3. Fine-tuned for 60 epochs with LR 7e-5.
 
+### 3. Results
 
+#### 3.1 Image Classification
 
-def PosEmbeds():
-	
-
-```
-
-## 3 Results
-
-##### **Image Classification**: 
-We employ the ImageNet-1K dataset  for classification that includes 1.2M and 50K training and validation images. The dataset has 1000 categories and we report the performance in terms of top-1 accuracy. In addition, we use ImageNet-21K dataset which has 14M images with 21841 classes for pretraining.
-
-Trained FasterViT models using LAMB optimizer for 300 epochs with a learning rate of 5e-3 and a total batch size of 4096 using 32 A100 GPUs.
-
-For **Data Augmentation**, they used the same strategies as in previous efforts (?)
-They also used Exponential Moving Average (EMA).
-
-For pre-training on ImageNet-21K, we train the models for 90 epochs with a learning rate of 4e-3. In addition, we fine-tune the models for 60 epochs with a learning rate of 7e-5.
-
-**Imagenet-1K** (BS 128 with A100)
+Benchmark on [[ImageNet]]-1K (BS 128 with A100).
 
 **Conv-Based**
 
@@ -168,6 +164,7 @@ For pre-training on ImageNet-21K, we train the models for 90 epochs with a learn
 | RegNetY-040      | 288             | 20.6      | 6.6       | 3227                 | 83.0  |
 | ResNetV2-101     | 224             | 44.5      | 7.8       | 4019                 | 82.0  |
 | EfficientNetV2-S | 384             | 21.5      | 8.0       | 1735                 | 83.9  |
+
 **Transformer-Based**
 
 | Model          | Image Size (Px) | Param (M) | Flops (G) | Throughput (Img/Sec) | Top-1 |
@@ -180,6 +177,7 @@ For pre-training on ImageNet-21K, we train the models for 90 epochs with a learn
 | Twins-B        |       224       |   56.1    |    8.3    |         1926         | 83.1  |
 | DeiT3-L        |       224       |   304.4   |   59.7    |         535          | 84.8  |
 | PoolFormer-M58 |       224       |   73.5    |   11.6    |         884          | 82.4  |
+
 **FasterViT (Hybrid Transformer)**
 
 | Model       | Image Size (Px) | Param (M) | Flops (G) | Throughput (Img/Sec) |  Top-1   |
@@ -197,8 +195,9 @@ For pre-training on ImageNet-21K, we train the models for 90 epochs with a learn
 ![[Pasted image 20241125233536.png| 400]]
 
 
-##### **Detection and Segmentation**:
-We used the MS COCO dataset to finetune a Cascade Mask-RCNN network. For this purpose, we trained all models with AdamW optimizer with an initial learning rate of 1e-4, a 3 x schedule, weight decay of 5e-2 and a total batch size of 16 on 8 A100 GPUs
+#### 3.2 Detection and Segmentation
+
+We used the [[MS COCO]] dataset to finetune a Cascade Mask-RCNN network. Trained all models with AdamW optimizer with an initial learning rate of 1e-4, a 3x schedule, weight decay of 5e-2 and a total batch size of 16 on 8 A100 GPUs.
 
 | Backbone      | throu. (im/sec) | AP mask            | AP box                 |
 | ------------- | --------------- | ------------------ | ---------------------- |
@@ -219,8 +218,9 @@ We used the MS COCO dataset to finetune a Cascade Mask-RCNN network. For this pu
 | FasterViT-4   | 117             | 52.9  71.6  57.7   | 45.8  69.1  49.8       |
 
 
-##### **Semantic Segmentation**: 
-we employed ADE20K dataset  to finetune an UperNet network with pre-trained FasterViT backbones. Specifically, we trained all models with Adam-W optimizer and by using a learning rate of 6e-5, weight decay of 1e-2 and total batch size of 16 on 8 A100 GPUs
+#### 3.3 Semantic Segmentation
+
+We employed [[ADE20K]] dataset to finetune an UperNet network with pre-trained FasterViT backbones. Trained all models with AdamW optimizer, LR 6e-5, weight decay 1e-2 and total batch size of 16 on 8 A100 GPUs.
 
 | Model       | Throughput | FLOPs | IoU(ss/ms) |
 | ----------- | ---------- | ----- | ---------- |
@@ -237,3 +237,17 @@ we employed ADE20K dataset  to finetune an UperNet network with pre-trained Fast
 | Swin-B      | 172        | 1188  | 48.1/49.7  |
 | ConvNeXt-B  | 189        | 1170  | -/49.9     |
 | FasterViT-4 | 202        | 1290  | 49.1/50.3  |
+
+#### 3.4 Limitations
+- Largest variants (FasterViT-5/6) have massive parameter counts (957M–1.3B), making them impractical for edge deployment despite the architecture's efficiency focus.
+- Throughput advantage narrows at larger model scales: FasterViT-6 achieves only 352 img/s compared to DeiT3-L at 535 img/s, meaning the larger FasterViT variants trade throughput for accuracy rather than maintaining both.
+- The carrier token mechanism adds a fixed overhead (pooling, global attention on CTs, concatenation) that may not pay off for very low-resolution inputs where standard windowed attention is already cheap.
+- The HAT block pseudocode in this note leaves the positional embedding function (`PosEmbeds`) empty, suggesting the positional encoding details are non-trivial and not straightforward to summarize.
+
+### 4. Appendix
+
+### 5. Connections
+- Uses [[Swin Transformer]] windowed attention as baseline, extends it with carrier tokens for cross-window interaction
+- Incorporates ideas from [[Skip-Attention, Improving Vision Transformers by Paying Less Attention]] — same research group, SkipAt ideas were incorporated into FasterViT's design
+- Compared against [[ConvNeXt]], [[DeiT]], [[Swin Transformer]] — consistently better throughput-accuracy trade-off
+- Hybrid CNN-Transformer approach similar to CoAtNet but with the novel HAT mechanism
