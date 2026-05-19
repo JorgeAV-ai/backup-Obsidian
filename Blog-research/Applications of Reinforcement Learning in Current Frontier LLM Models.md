@@ -144,42 +144,33 @@ Models no longer only memorize patterns from the internet. The strongest systems
 
 ## Bibliography
 
+### Foundations: RLHF, DPO, and AI Feedback
 
+- Ouyang et al., 2022. [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155). The InstructGPT paper that established the classic SFT -> reward model -> PPO alignment pipeline.
+- Bai et al., 2022. [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073). Anthropic's original RLAIF / Constitutional AI paper.
+- Rafailov et al., 2023. [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290). The core DPO paper, useful for understanding offline preference optimization without explicit reward-model training.
+- Anthropic, 2023. [Claude's Constitution](https://www.anthropic.com/research/claudes-constitution). Public version of the principles used to guide Claude-style constitutional critique.
+- Anthropic, 2026. [Claude's New Constitution](https://www.anthropic.com/news/claude-new-constitution). Updated public constitution and useful context for the shift from rule lists toward broader reason-based alignment.
 
-https://blog.lewagon.com/skills/openai-o1-and-o3-explained-how-thinking-models-work/
+### Reasoning RL and Verifiable Rewards
 
-https://arxiv.org/html/2601.03267v1
+- OpenAI, 2024. [Learning to Reason with LLMs](https://openai.com/index/learning-to-reason-with-llms/). Primary OpenAI source for o1-style reasoning, RL training, and test-time compute framing.
+- DeepSeek-AI, 2025. [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948). Primary source for DeepSeek-R1, DeepSeek-R1-Zero, GRPO, and RLVR-style reasoning training.
+- Yue et al., 2025. [Stable Reinforcement Learning for Efficient Reasoning](https://arxiv.org/abs/2505.18086). Introduces GRPO-$\lambda$ and discusses stabilizing length penalties during reasoning RL.
+- Moonshot AI, 2025. [Kimi k1.5: Scaling Reinforcement Learning with LLMs](https://arxiv.org/abs/2501.12599). Primary source for Kimi's long-context RL and scaling approach.
+- Label Studio, 2025. [Reinforcement Learning from Verifiable Rewards](https://labelstud.io/blog/reinforcement-learning-from-verifiable-rewards/). Secondary explanation of RLVR; useful as an accessible conceptual overview, not as the main evidence source.
 
-https://labelstud.io/blog/reinforcement-learning-from-verifiable-rewards/
+### Frontier Model Case Studies
 
-https://www.reddit.com/r/learnmachinelearning/comments/1ichl3z/can_anybody_explain_how_the_rl_portion_of/
+- Meta AI, 2025. [The Llama 4 herd: The beginning of a new era of natively multimodal AI innovation](https://ai.meta.com/blog/llama-4-multimodal-intelligence/). Primary source for Llama 4 post-training claims, including lightweight SFT, online RL, and DPO-style polishing.
+- Mistral AI, 2025. [Magistral](https://mistral.ai/news/magistral). Primary source for Mistral's reasoning model family, multilingual reasoning focus, and RL/post-training framing.
+- Google DeepMind, 2026. [Accelerating Mathematical and Scientific Discovery with Gemini Deep Think](https://deepmind.google/blog/accelerating-mathematical-and-scientific-discovery-with-gemini-deep-think/). Primary DeepMind source for Gemini Deep Think and scientific reasoning claims.
+- Feng et al., 2026. [Towards Autonomous Mathematics Research](https://arxiv.org/abs/2602.10177). Research paper describing Aletheia as a mathematics research agent built on Gemini Deep Think.
+- Feng et al., 2026. [Aletheia tackles FirstProof autonomously](https://arxiv.org/abs/2602.21201). Follow-up evaluation of Aletheia on the FirstProof challenge.
+- Tehrani et al., 2026. [Fine-Tuning GPT-5 for GPU Kernel Generation](https://arxiv.org/abs/2602.11000). Makora paper on RL fine-tuning for GPU kernel generation with verifiable rewards.
+- Makora, 2026. [We RL'd GPT-5 to Write Better Kernels](https://makora.com/blog/gpt5-rl). Companion blog post for the Makora GPU-kernel RL work.
 
-https://arxiv.org/html/2505.18086v1
+### Useful Background and Secondary Reading
 
-https://arxiv.org/html/2501.12948v1
-
-https://decodethefuture.org/en/rlhf-explained/
-
-https://deepmind.google/blog/accelerating-mathematical-and-scientific-discovery-with-gemini-deep-think/
-
-https://arxiv.org/html/2509.02547v4
-
-https://openai.com/index/learning-to-reason-with-llms/
-
-https://arxiv.org/pdf/2603.28123
-
-https://www.anthropic.com/research/claudes-constitution
-
-https://www.anthropic.com/news/claude-new-constitution
-
-https://blog.google/innovation-and-ai/models-and-research/google-deepmind/google-gemini-ai-update-december-2024/
-
-https://deepmind.google/blog/accelerating-mathematical-and-scientific-discovery-with-gemini-deep-think/
-
-https://ai.meta.com/blog/llama-4-multimodal-intelligence/
-
-https://arxiv.org/abs/2601.11659
-
-https://machine-learning-made-simple.medium.com/inside-llama-4-how-metas-new-open-source-ai-crushes-gpt-4o-and-gemini-e3265f914599
-
-https://arxiv.org/html/2510.12178v1
+- Decode the Future, 2024. [RLHF explained](https://decodethefuture.org/en/rlhf-explained/). Accessible background on RLHF for readers who want a less technical introduction.
+- Le Wagon, 2025. [OpenAI o1 and o3 explained: how thinking models work](https://blog.lewagon.com/skills/openai-o1-and-o3-explained-how-thinking-models-work/). Secondary overview of reasoning-model concepts; useful for intuition, but weaker than primary model/paper sources.
