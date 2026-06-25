@@ -4,21 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "7cb020230f001a00",
+        "id": "e480fc34586ecd0f",
         "type": "tabs",
         "children": [
           {
-            "id": "7958fe2c0b2f72a6",
+            "id": "ba78f437cb464178",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Blog-research/Applications of Reinforcement Learning in Current Frontier LLM Models.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "Applications of Reinforcement Learning in Current Frontier LLM Models"
+              "title": "New tab"
             }
           }
         ]
@@ -183,16 +179,28 @@
       "bases:Create new base": false
     }
   },
-  "active": "7958fe2c0b2f72a6",
+  "active": "ba78f437cb464178",
   "lastOpenFiles": [
+    "docs/superpowers/specs/2026-05-21-obsidian-canvas-research-hub-design.md",
+    "Blog-research/Applications of Reinforcement Learning in Current Frontier LLM Models.md",
+    "Maps/Attention.md",
+    "misc/dpo_vs_ppo_rlhf_comparison.png",
     "Maps/Vault Map.md",
+    "misc/mistral_magistral_rl_bootstrapping.png",
+    "misc/kimi_generative_reward_model_loop.png",
+    "misc/anthropic_rlaif_constitution_loop.png",
+    "misc/aletheia_verifier_reviser_loop.png",
+    "misc/makora_kernel_rl_evaluation_loop.png",
+    "misc/reasoning_scaling_train_test_compute.png",
+    "misc/deepseek_r1_training_pipeline.png",
+    "misc/grpo_reasoning_rl_comparison.png",
+    "misc/frontier_rl_model_comparison.png",
     "Maps/Retrieval.md",
     "Maps/Natural Language Processing.md",
     "Maps/Large Language Models.md",
     "Maps/Efficient Transformers.md",
     "Maps/Document AI.md",
     "Maps/Computer Vision.md",
-    "Maps/Attention.md",
     "Maps",
     "Concepts/Math/Unpadding.md",
     "Concepts/Math/Beam Search.md",
@@ -210,8 +218,6 @@
     "Concepts/Retrieval/DiskANN.md",
     "Concepts/Retrieval/Dense Retrieval.md",
     "Concepts/Retrieval/RAG.md",
-    "Concepts/Architecture/MoE.md",
-    "Concepts/Architecture/ECA.md",
     "Concepts/Training",
     "Concepts/Retrieval",
     "Concepts/Math",
@@ -221,16 +227,6 @@
     "Concepts",
     "Papers/Natural Language Processing",
     "Papers/Large Language Models",
-    "misc/grpo_comparison_english.png",
-    "misc/rl_frontier_comparison_table.png",
-    "ChatGPT Image May 19, 2026, 01_59_42 PM.png",
-    "ChatGPT Image May 19, 2026, 01_59_05 PM.png",
-    "ChatGPT Image May 19, 2026, 01_30_46 PM.png",
-    "ChatGPT Image May 19, 2026, 01_21_22 PM.png",
-    "ChatGPT Image May 19, 2026, 12_56_14 PM.png",
-    "ChatGPT Image May 19, 2026, 12_50_56 PM.png",
-    "ChatGPT Image May 19, 2026, 12_45_21 PM.png",
-    "ChatGPT Image May 18, 2026, 12_15_38 AM.png",
     "Untitled.canvas"
   ]
 }

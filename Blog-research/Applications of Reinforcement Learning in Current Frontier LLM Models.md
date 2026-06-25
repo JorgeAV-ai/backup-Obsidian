@@ -14,7 +14,6 @@ Before the big shift in 2025, the standard way to align LLMs was heavily shaped 
 
 While this worked well for basic tone adjustments and following simple instructions, classic RLHF had serious flaws. It suffered from the "alignment tax", a problem where optimizing a model to sound polite or safe actively harmed its underlying reasoning and academic skills. Also, PPO was notoriously complex and required massive amounts of memory, as several models (Actor, Critic, Reference, and Reward) had to run at the same time.
 
-
 In late 2023, Direct Preference Optimization (DPO) was introduced as the first major simplification. DPO proved mathematically that the separate reward modeling step could be skipped entirely, allowing the policy to be optimized directly from datasets of human preferences. However, pre-2025 DPO was strictly an "offline" method. Both PPO and DPO relied entirely on static, human-annotated data, which meant the models could never really surpass human reasoning capabilities. To break through this ceiling, the industry had to move toward verifiable rewards and the "online" methods we see today.
 
 ![[dpo_vs_ppo_rlhf_comparison.png|570]]
@@ -64,7 +63,6 @@ The OpenAI ecosystem, featuring the "o" series and later frontier reasoning mode
 ![[reasoning_scaling_train_test_compute.png|608]]
 
 This figure uses DeepSeek-R1-Zero scaling curves as a public proxy for the general train-time/test-time scaling idea. OpenAI has described similar qualitative behavior for reasoning models, but has not released equally detailed public intermediate scaling traces.
-
 
 The reported results show why this paradigm became so influential. On math and science benchmarks, deep RL and extra inference-time computation appear to push reasoning models far beyond ordinary chat models. But perhaps the most interesting application is using RL in highly technical fields where there is little or no human training data available. Through an evaluation system called Makora, OpenAI treated the writing of code kernels (highly optimized code for hardware) as a pure RL problem.
 
@@ -132,6 +130,7 @@ There is also a cost problem. Test-time compute can improve accuracy by letting 
 Finally, hidden chain-of-thought creates an auditing problem. Many frontier systems may use long internal reasoning traces without exposing them directly. That can be good for safety and user experience, but it makes it harder for outsiders to inspect what the model actually learned from RL.
 
 ## Conclusion
+
 
 The case studies of OpenAI, DeepMind, Meta, DeepSeek, Mistral, Moonshot, and Anthropic suggest that frontier AI development has shifted from static pre-training alone toward a more interactive post-training stack. Verifiable rewards, online optimization, AI feedback, self-distillation, tool environments, and test-time compute now work together to shape how models reason.
 
